@@ -1,0 +1,171 @@
+// OUR TRIP: the structure of the trip (dates, times, places, phone numbers, tickets).
+// EXAMPLE: a made-up demo trip (fictional phone numbers, fake ticket codes). Committed, used by CI.
+// To start your own trip, copy this whole folder to private/ and edit it there: private/ is never published.
+//
+// The format is JSON5: JSON that also allows comments, unquoted keys and trailing commas.
+//
+// Text that people read is never written here. Text fields hold a translation key,
+// and the words live in private/locales/<language>/trip.json:
+//   title: "d1.title"                                   -> "Arrival" / "Прилёт"
+//   meet: ["meet.lobbyAt", { time: "09:45" }]           -> "Hotel lobby at {time}", with {time} filled in
+// Values that are the same in every language (times, codes, phone numbers, addresses
+// in the local language) are written here directly.
+//
+// Times are local times at the destination. Phones switch time zone by themselves when they land.
+{
+  title: "trip.title",
+
+  settings: {
+    languages: ["en", "ru"],  // need locales/<code>/app.json and private/locales/<code>/trip.json. The first is the fallback.
+    language: null,           // force a language, e.g. "ru". null = follow the phone's language.
+    speechLang: "tr-TR",      // language spoken at the destination, used by the "Hear it" buttons
+    demoTodayIsDay: 2,        // DEMO ONLY: pretend today is day 2. Set to null for the real trip.
+  },
+
+  // Where the weather forecast is for. Delete this block to hide the weather.
+  // The forecast (Open-Meteo, free, no key) covers about 16 days ahead and refreshes whenever the phone is online.
+  weather: { lat: 41.0082, lon: 28.9784 },
+
+  // Places are referenced by their key from days, the taxi card and the help page.
+  // localName and address are written the way locals write them: they go on the taxi card and into Google Maps.
+  places: {
+    hotel:       { name: "place.hotel", localName: "Lale Garden Otel", address: "Alemdar Mah., Divanyolu Cd. No:10, 34110 Fatih/İstanbul", phone: "+90 212 000 00 00" },
+    airport:     { name: "place.airport", localName: "İstanbul Havalimanı", address: "Tayakadın, Terminal Cd. No:1, 34283 Arnavutköy/İstanbul" },
+    hagia:       { name: "place.hagia", localName: "Ayasofya", address: "Sultan Ahmet, Ayasofya Meydanı No:1, 34122 Fatih/İstanbul" },
+    blueMosque:  { name: "place.blueMosque", localName: "Sultanahmet Camii", address: "Sultan Ahmet, Atmeydanı Cd. No:7, 34122 Fatih/İstanbul" },
+    square:      { name: "place.square", localName: "Sultanahmet Meydanı", address: "Sultan Ahmet, Sultanahmet Meydanı, 34122 Fatih/İstanbul" },
+    spiceBazaar: { name: "place.spiceBazaar", localName: "Mısır Çarşısı", address: "Rüstem Paşa, Erzak Ambarı Sk. No:92, 34116 Fatih/İstanbul" },
+    topkapi:     { name: "place.topkapi", localName: "Topkapı Sarayı", address: "Cankurtaran, 34122 Fatih/İstanbul" },
+    grandBazaar: { name: "place.grandBazaar", localName: "Kapalıçarşı", address: "Beyazıt, Kalpakçılar Cd. No:22, 34126 Fatih/İstanbul" },
+    eminonu:     { name: "place.eminonu", localName: "Eminönü İskelesi", address: "Rüstem Paşa, Eminönü, 34116 Fatih/İstanbul" },
+    galata:      { name: "place.galata", localName: "Galata Kulesi", address: "Bereketzade, Galata Kulesi, 34421 Beyoğlu/İstanbul" },
+  },
+
+  // Tickets: put a screenshot of the real QR / barcode (PNG, JPG or SVG) into private/tickets/ and point "image" at it.
+  // The images are encrypted into trip.enc together with everything else.
+  tickets: {
+    flightOut: {
+      title: "ticket.flightOut", when: ["when.dayTime", { day: 1, time: "10:40" }],
+      code: "QX7K2P", image: "tickets/flight-out.svg",
+      details: [["ticket.seats", { mum: "14A", dad: "14B" }], ["ticket.bags", { kg: 23 }], ["ticket.beAtAirport", { time: "08:40" }]],
+    },
+    museum: {
+      title: "ticket.museum", when: ["when.days", { from: 2, to: 4 }],
+      code: "MPI-58213", image: "tickets/museum.svg",
+      details: ["ticket.museum.where", "ticket.museum.who"],
+    },
+    boat: {
+      title: "ticket.boat", when: ["when.dayTime", { day: 4, time: "10:00" }],
+      code: "BSP-4471", image: "tickets/boat.svg",
+      details: [["ticket.boat.pier", { gate: 3 }], ["ticket.boat.back", { time: "12:00" }]],
+    },
+    flightBack: {
+      title: "ticket.flightBack", when: ["when.dayTime", { day: 5, time: "14:55" }],
+      code: "QX7K2P", image: "tickets/flight-back.svg",
+      details: [["ticket.seats", { mum: "21C", dad: "21D" }], ["ticket.beAtAirport", { time: "12:00" }]],
+    },
+  },
+
+  // icon: plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase
+  days: [
+    {
+      date: "2026-11-02", title: "d1.title", note: "d1.note",
+      events: [
+        { time: "08:40", icon: "suitcase", title: "ev.checkin", note: "ev.checkin.note", ticket: "flightOut" },
+        { time: "10:40", icon: "plane", title: "ev.flightOut", ticket: "flightOut" },
+        { time: "14:30", icon: "car", title: "ev.landing", note: "ev.landing.note", place: "airport" },
+        { time: "16:00", icon: "bed", title: "ev.hotelCheckin", note: ["ev.hotelCheckin.note", { room: 305 }], place: "hotel" },
+        { time: "19:00", icon: "food", title: "ev.dinnerNearHotel", meet: ["meet.lobbyAt", { time: "18:50" }] },
+      ],
+    },
+    {
+      date: "2026-11-03", title: "d2.title", note: "d2.note",
+      events: [
+        { time: "08:30", icon: "coffee", title: "ev.breakfast" },
+        { time: "10:00", icon: "landmark", title: "place.hagia", note: "ev.hagia.note", place: "hagia", meet: ["meet.lobbyAt", { time: "09:45" }] },
+        { time: "12:00", icon: "landmark", title: "place.blueMosque", note: "ev.blueMosque.note", place: "blueMosque" },
+        { time: "13:30", icon: "food", title: "ev.lunchSpice", place: "spiceBazaar" },
+        { time: "15:30", icon: "moon", title: "ev.rest", place: "hotel" },
+        { time: "18:30", icon: "walk", title: "ev.eveningWalk", place: "square", meet: ["meet.lobbyAt", { time: "18:20" }] },
+      ],
+    },
+    {
+      date: "2026-11-04", title: "d3.title", note: "d3.note",
+      events: [
+        { time: "08:30", icon: "coffee", title: "ev.breakfast" },
+        { time: "09:30", icon: "landmark", title: "place.topkapi", note: "ev.topkapi.note", place: "topkapi", ticket: "museum", meet: ["meet.lobbyAt", { time: "09:15" }] },
+        { time: "13:00", icon: "food", title: "ev.lunchPalace" },
+        { time: "14:30", icon: "bag", title: "place.grandBazaar", note: "ev.grandBazaar.note", place: "grandBazaar" },
+        { time: "19:00", icon: "food", title: "ev.dinner", meet: ["meet.lobbyAt", { time: "18:50" }] },
+      ],
+    },
+    {
+      date: "2026-11-05", title: "d4.title", note: "d4.note",
+      events: [
+        { time: "09:20", icon: "car", title: "ev.taxiPier", place: "eminonu", meet: ["meet.lobbyAt", { time: "09:15" }] },
+        { time: "10:00", icon: "ship", title: "ticket.boat", place: "eminonu", ticket: "boat" },
+        { time: "12:30", icon: "food", title: "ev.fish", note: "ev.fish.note", place: "eminonu" },
+        { time: "15:00", icon: "landmark", title: "place.galata", note: "ev.galata.note", place: "galata" },
+        { time: "17:00", icon: "moon", title: "ev.rest", place: "hotel" },
+        { time: "20:00", icon: "suitcase", title: "ev.pack", note: "ev.pack.note" },
+      ],
+    },
+    {
+      date: "2026-11-06", title: "d5.title", note: ["d5.note", { time: "11:00" }],
+      events: [
+        { time: "08:00", icon: "coffee", title: "ev.breakfast" },
+        { time: "10:30", icon: "bed", title: "ev.checkout", note: "ev.checkout.note", place: "hotel" },
+        { time: "11:00", icon: "car", title: "ev.transfer", place: "airport", meet: "meet.lobbyBags" },
+        { time: "12:00", icon: "suitcase", title: "ev.checkin", ticket: "flightBack" },
+        { time: "14:55", icon: "plane", title: "ev.flightHome", ticket: "flightBack" },
+      ],
+    },
+  ],
+
+  taxi: {
+    ask: "Lütfen beni bu adrese götürün:",   // "Please take me to this address", in the local language (not translated)
+  },
+
+  help: {
+    emergency: "112",
+    family: [
+      { name: "Alex", note: "help.alex.note", phone: "+44 7700 900123" },
+      { name: "Sam", note: ["help.sam.note", { name: "Alex" }], phone: "+44 7700 900456" },
+    ],
+    lost: ["help.lost.1", ["help.lost.2", { first: "Alex", second: "Sam" }], "help.lost.3", "help.lost.4"],
+    hotel: "hotel",
+    insurance: { company: "Demo Travel Insurance", policy: "DTI-0042-7731", phone: "+44 7700 900789", note: "help.insurance.note" },
+    consulate: { name: "help.consulate.name", note: "help.consulate.note", phone: "+90 212 000 00 01" },
+  },
+
+  money: {
+    local: { code: "TRY", symbol: "₺", price: "money.local.price", from: "money.local.from" },
+    home: { code: "EUR", symbol: "€", price: "money.home.price", from: "money.home.from" },
+    pair: "money.pair",
+    rate: 52,   // 1 home = this many local. Update the week before the trip.
+    quick: { local: [20, 50, 100, 250, 500, 1000], home: [1, 5, 10, 20, 50, 100] },
+  },
+
+  lists: [
+    { id: "daily", title: "list.daily",
+      items: ["list.daily.1", "list.daily.2", "list.daily.3", "list.daily.4", "list.daily.5", "list.daily.6", "list.daily.7"] },
+    { id: "packing", title: "list.packing",
+      items: ["list.packing.1", "list.packing.2", "list.packing.3", "list.packing.4", "list.packing.5", "list.packing.6", "list.packing.7", "list.packing.8"] },
+    { id: "home", title: "list.home",
+      items: ["list.home.1", "list.home.2", "list.home.3", "list.home.4", "list.home.5"] },
+  ],
+
+  // meaning, say: translation keys · local: the phrase in the destination's language (not translated) · extra: shown big under it
+  phrases: [
+    { meaning: "ph.hello", say: "ph.hello.say", local: "Merhaba" },
+    { meaning: "ph.thanks", say: "ph.thanks.say", local: "Teşekkür ederim" },
+    { meaning: "ph.yesNo", say: "ph.yesNo.say", local: "Evet / Hayır" },
+    { meaning: "ph.howMuch", say: "ph.howMuch.say", local: "Ne kadar?" },
+    { meaning: "ph.bill", say: "ph.bill.say", local: "Hesap, lütfen" },
+    { meaning: "ph.toilet", say: "ph.toilet.say", local: "Tuvalet nerede?" },
+    { meaning: "ph.water", say: "ph.water.say", local: "Su, lütfen" },
+    { meaning: "ph.noTurkish", say: "ph.noTurkish.say", local: "Türkçe bilmiyorum" },
+    { meaning: "ph.callNumber", say: "ph.callNumber.say", local: "Lütfen bu numarayı arayın", extra: "+44 7700 900123" },
+    { meaning: "ph.doctor", say: "ph.doctor.say", local: "Doktora ihtiyacım var" },
+  ],
+}
