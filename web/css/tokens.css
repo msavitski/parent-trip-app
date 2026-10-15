@@ -1,0 +1,68 @@
+/* Design tokens: colours for both themes, fonts, sizes. Every colour in app.css comes from here. */
+:root {
+  /* Layout: one phone column. Airport-sign yellow marks what happens next and anything you show to a stranger.
+     Fixed tab bar at the bottom; full-screen sheets for the taxi card, tickets, money and phrases. */
+  --bg: #edf1f7;
+  --surface: #ffffff;
+  --ink: #0d1829;
+  --muted: #45526a;
+  --line: #c9d2e0;
+  --accent: #1546c4;
+  --accent-ink: #ffffff;
+  --accent-soft: #dde6fa;
+  --danger: #b42318;
+  --danger-ink: #ffffff;
+  --ok: #17803d;
+  --ok-ink: #ffffff;
+  /* the same in both themes on purpose: signs stay yellow, tickets stay white for scanners */
+  --sign: #ffce1b;
+  --sign-ink: #111111;
+  --paper: #ffffff;
+  --paper-ink: #000000;
+  --paper-muted: #4a4a4a;
+  --f-text: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', Roboto, system-ui, 'Segoe UI', sans-serif;
+  --f-mono: 'Atkinson Hyperlegible Mono', ui-monospace, 'Roboto Mono', Consolas, monospace;
+  --radius: 16px;
+  --tabbar: 4.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0a111d;
+    --surface: #131d2e;
+    --ink: #eef2f8;
+    --muted: #a9b5c8;
+    --line: #2a3950;
+    --accent: #8fb0ff;
+    --accent-ink: #0a111d;
+    --accent-soft: #1a2948;
+    --danger: #d92d2d;
+    --danger-ink: #ffffff;
+    --ok: #3fb56e;
+    --ok-ink: #0a111d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0a111d;
+  --surface: #131d2e;
+  --ink: #eef2f8;
+  --muted: #a9b5c8;
+  --line: #2a3950;
+  --accent: #8fb0ff;
+  --accent-ink: #0a111d;
+  --accent-soft: #1a2948;
+  --danger: #d92d2d;
+  --danger-ink: #ffffff;
+  --ok: #3fb56e;
+  --ok-ink: #0a111d;
+  color-scheme: dark;
+}
+:root:lang(ru),
+:root:lang(be),
+:root:lang(uk),
+:root:lang(bg),
+:root:lang(sr),
+:root:lang(kk) {
+  --f-text: 'Golos Text', Roboto, system-ui, 'Segoe UI', sans-serif;
+  --f-mono: 'Roboto Mono', ui-monospace, Consolas, monospace;
+}

@@ -1,0 +1,53 @@
+# Checks that run on every commit. Set up once, with the .venv active:
+#   pre-commit install
+# The local hooks call `npx` and `trip`, so commit from a terminal where .venv is active.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: npx --no-install prettier --check --ignore-unknown
+        language: system
+        types: [text]
+        exclude: ^(schema/|types/trip\.d\.ts|example/|web/trip\.enc|package-lock\.json)
+
+      - id: eslint
+        name: eslint
+        entry: npx --no-install eslint
+        language: system
+        files: \.js$
+
+      - id: typecheck
+        name: tsc (JSDoc types)
+        entry: npm run -s typecheck
+        language: system
+        pass_filenames: false
+        files: ^(web/|types/|jsconfig)
+
+      - id: trip-check
+        name: trip check (example data)
+        entry: trip check --data example
+        language: system
+        pass_filenames: false
+        files: ^(example/|web/locales/|tools/)
+
+      - id: trip-schema
+        name: schema/trip.schema.json is up to date
+        entry: trip schema --check
+        language: system
+        pass_filenames: false
+        files: ^(tools/|schema/)
+
+      - id: trip-precache
+        name: web/sw.js file list is up to date
+        entry: trip precache --check
+        language: system
+        pass_filenames: false
+        files: ^web/
