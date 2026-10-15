@@ -1,0 +1,16 @@
+{
+  // Type-checks the app (web/js) from its JSDoc comments. Nothing is compiled: the browser runs the files as-is.
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["web/js/**/*.js", "types/**/*.d.ts"]
+}

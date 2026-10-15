@@ -1,0 +1,26 @@
+{
+  "name": "our-trip",
+  "private": true,
+  "type": "module",
+  "description": "Development tools only (type checking, lint, format). Nothing from node_modules is published: the site in web/ runs as-is.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p jsconfig.json && tsc -p jsconfig.sw.json",
+    "types": "json2ts -i schema/trip.schema.json -o types/trip.d.ts --no-additionalProperties --unreachableDefinitions --bannerComment \"/* Generated from schema/trip.schema.json by `npm run types`. Do not edit: change tools/src/trip_tools/model.py, then run `trip schema` and `npm run types`. */\"",
+    "check": "npm run format:check && npm run lint && npm run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "eslint-plugin-import-x": "^4.17.1",
+    "globals": "^17.13.0",
+    "json-schema-to-typescript": "^16.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
+  }
+}

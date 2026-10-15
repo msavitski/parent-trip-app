@@ -1,0 +1,13 @@
+# generated
+schema/
+types/trip.d.ts
+web/trip.enc
+
+# data files are formatted by hand (aligned columns are easier to read)
+example/
+private/
+
+# tools
+node_modules/
+.venv/
+package-lock.json
