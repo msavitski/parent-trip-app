@@ -1,0 +1,6 @@
+# Your real trip: data, trip texts and ticket images. Never published.
+# tools/build.py encrypts this folder into trip.enc, and only trip.enc goes online.
+# Keep a backup of it somewhere private (a private repository, a cloud drive).
+private/
+
+__pycache__/
