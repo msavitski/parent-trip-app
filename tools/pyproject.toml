@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trip-tools"
+version = "1.0.0"
+description = "Validate, encrypt and serve the Our Trip app's data."
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=42",
+  "json5>=0.9",
+  # pinned to a minor version: the generated JSON schema (schema/trip.schema.json) can change between versions
+  "pydantic>=2.13,<2.14",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.15", "pre-commit>=4"]
+
+[project.scripts]
+trip = "trip_tools.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PTH"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["trip_tools"]
