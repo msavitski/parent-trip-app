@@ -99,6 +99,7 @@
   "login.noData": "Can’t load the trip. Connect to the internet and try again.",
   "login.retry": "Try again",
   "login.unsupported": "This browser is too old to open the trip. Please update Chrome.",
+  "error.generic": "Something went wrong. Close the app and open it again.",
 
   "help.phone": "This phone",
   "help.forget": "Forget the password",
