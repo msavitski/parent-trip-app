@@ -1,0 +1,9 @@
+# Same line endings on every machine (LF), so content hashes and diffs are stable.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.woff2 binary
