@@ -16,18 +16,19 @@ GitHub Pages can't put a password on a site, so the trip is **encrypted** before
 
 **Version 1** (one family password): the payload is encrypted with PBKDF2(family password).
 
-**Version 2** (`trip password admin` adds an admin password):
+**Version 2** (`trip password admin` adds an admin password), and **version 3** (version 2 with hidden days):
 
-| Part           | Encrypted with          | Contains                                   |
-| -------------- | ----------------------- | ------------------------------------------ |
-| `data`         | a random **data key**   | the trip                                   |
-| `slots.family` | PBKDF2(family password) | the data key                               |
-| `slots.admin`  | PBKDF2(admin password)  | the data key + a random **admin key**      |
-| `admin`        | the admin key           | admin settings: GitHub token, repositories |
+| Part           | Encrypted with          | Contains                                                                  |
+| -------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `data`         | a random **data key**   | the trip as the family sees it (hidden days without their plans)          |
+| `slots.family` | PBKDF2(family password) | the data key                                                              |
+| `slots.admin`  | PBKDF2(admin password)  | the data key + a random **admin key**                                     |
+| `admin`        | the admin key           | admin settings: GitHub token, repositories                                |
+| `hidden` (v3)  | the admin key           | the whole trip with its texts, and the ticket images only hidden days use |
 
 Both slots use the file's one salt. A phone keeps PBKDF2(family password), which opens the family slot exactly
 as it opened a v1 file, so **upgrading to two passwords doesn't log any phone out**. The family password can't open
-the admin settings; the admin password opens everything.
+the admin settings or the hidden days; the admin password opens everything.
 
 ## What it protects against
 
@@ -38,6 +39,21 @@ the admin settings; the admin password opens everything.
 - **The admin password matters most.** Whoever guesses it can read the trip _and_ the GitHub token, so they could
   write to the two repositories (not delete them, not touch settings, workflows or your other repositories). Make it
   long, different from the family password (the tools refuse the same one), and give the token an expiry date.
+
+**Hidden days are encrypted apart, for the admin password only.** `trip build` and the app's Publish split the
+trip in two. `data`, which the family password opens, has each hidden day as just its date, and leaves out the
+tickets, places, texts and ticket images that only hidden days use. The whole trip goes into `hidden`, encrypted with
+the admin key, so the family password can't decrypt a hidden day's plan, even with a computer's developer tools.
+They can still see _that_ a day is hidden, and its date. The rules for what's left out are in `bundle.py`
+(`for_family`) and `web/js/trip.js` (`forFamily`), which must stay the same.
+
+- Hidden days need the admin password: `trip build` refuses the family password when a hidden day has a plan (its
+  title, note or events). A one-password trip has no admin key, so `trip build` leaves those plans out of
+  `trip.enc` (nobody could see them anyway) until you add an admin password and build again.
+- A file with a `hidden` part is **version 3**, which tools and apps from before it can't write. They refuse to,
+  instead of publishing the trip without its hidden part. A trip whose hidden days have no plans stays version 2.
+- A `trip.enc` made by version 0.0.4 still has its hidden days in `data` (they were only hidden by the app) until
+  the next `trip build` or Publish, or `trip password admin` on a one-password trip.
 
 It does **not** protect an unlocked phone: like a ticket app, anyone holding it can open the trip (and on an admin
 phone, edit and publish). Help → "Forget the password" locks it again.
@@ -70,8 +86,10 @@ phone, edit and publish). Help → "Forget the password" locks it again.
 - `trip password family` changes the family password. In a two-password trip it needs the admin password and also
   makes a **new data key**, so someone who knew the old family password can't read later versions. Phones show "The
   password has changed" and ask for the new one; admin logins are not affected.
-- `trip password admin` changes the admin password, and keeps the admin settings. If you forgot it, open with the family
-  password instead: the admin settings then start empty (run `trip admin` again).
+- `trip password admin` changes the admin password, and keeps the admin settings and the hidden days (encrypted again
+  with a new admin key). If you forgot it, open with the family password instead: the admin settings then start empty
+  (run `trip admin` again), and the hidden days are dropped from `trip.enc`, as only the old admin key opened them
+  (`trip build` with the new admin password puts them back from `private/`).
 - A one-password trip changes its password with `trip build --new-password` (a new salt).
 
 ## Setup link
@@ -85,4 +103,4 @@ it, and delete it from the chat after setup. `trip link` accepts only the family
 
 `private/` (and its private repository) is the readable copy of the trip. If it's lost,
 `trip unpack --out recovered` decrypts `web/trip.enc` back into an editable folder (comments in `trip.json5` are
-not kept). Either password works.
+not kept). Use the admin password: the family password gets the trip without the hidden days' plans (it says so).

@@ -273,6 +273,11 @@
           ],
           "default": null
         },
+        "hidden": {
+          "default": false,
+          "description": "Only the admin password shows this day; the family sees \"Plan coming later\" (and its weather).",
+          "type": "boolean"
+        },
         "events": {
           "items": {
             "$ref": "#/$defs/Event"

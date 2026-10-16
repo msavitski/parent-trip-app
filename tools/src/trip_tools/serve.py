@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 TYPES = {
     ".js": "text/javascript",
+    ".mjs": "text/javascript",
     ".css": "text/css",
     ".json": "application/json",
     ".webmanifest": "application/manifest+json",

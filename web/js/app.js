@@ -8,7 +8,7 @@ import { editScreen } from './admin/editor.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
-import { initTrip } from './trip.js';
+import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
 import { KEEP_AWAKE, moneyUpdate, renderSheet } from './ui/sheets.js';
 import { keepAwake, stopSpeaking } from './util.js';
@@ -246,7 +246,9 @@ function watch() {
 }
 
 /**
- * Start the app with an opened trip. The admin sees (and edits) a draft copy.
+ * Start the app with an opened trip. The admin sees (and edits) a draft copy of everything; the family
+ * sees hidden days as "Plan coming later". The family password only decrypts its own part of trip.enc,
+ * which already is forFamily's result; it still matters for a trip.enc made before that (0.0.4).
  * @param {Opened} opened
  */
 export async function start(opened) {
@@ -257,7 +259,7 @@ export async function start(opened) {
     state.draft = (await loadDraft()) ?? structuredClone(opened.payload);
   }
   try {
-    initTrip(structuredClone(state.draft ?? opened.payload));
+    initTrip(structuredClone(state.draft ?? forFamily(opened.payload)));
   } catch (error) {
     // a broken draft must never lock the admin out: drop it and open the published trip
     if (!state.draft) throw error;

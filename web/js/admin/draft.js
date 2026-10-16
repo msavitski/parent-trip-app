@@ -1,18 +1,20 @@
 /**
  * The admin's working copy of the trip (state.draft): text for the forms, the keys the editor makes,
- * ticket images, and keeping unpublished changes on this device until they are published.
+ * ticket images (a PDF becomes an image, see pdf.js), and keeping unpublished changes on this device
+ * until they are published.
  *
  * Forms edit what people read; this module turns that into translation keys:
  * - a field whose key is used only there is edited in place (every language);
  * - a field that shares its key with others, or fills {placeholders}, gets a new "ed.*" key,
  *   so editing it changes only that field. Unused "ed.*" keys are dropped before publishing.
  *
- * @import { Payload } from '../../../types/app'
+ * @import { Payload, TicketImage } from '../../../types/app'
  * @import { TextRef } from '../../../types/trip'
  */
 import { t } from '../i18n.js';
 import { state } from '../state.js';
 import { bigStore, store } from '../util.js';
+import { isPdf, pdfToImage } from './pdf.js';
 
 /** Translation keys look like "d1.title" or "ev.hagia.note" (same rule as tools/…/model.py). */
 export const KEY_PATTERN = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$/;
@@ -155,14 +157,22 @@ const asDataUrl = (blob) =>
     reader.readAsDataURL(blob);
   });
 
+/** @param {string} ticketId  "" for a new ticket @param {string} type */
+const imagePath = (ticketId, type) => `tickets/${ticketId || 'ticket'}-${Date.now().toString(36)}.${EXTENSIONS[type]}`;
+
 /**
- * A ticket image for the trip: small files as they are, big photos scaled down to a JPEG.
- * Returns null for a file type the trip can't use.
+ * A ticket image for the trip: small files as they are, big photos scaled down to a JPEG, and a PDF
+ * drawn as one image of its pages. Returns null for a file type the trip can't use; throws if a PDF
+ * can't be read.
  * @param {File} file
  * @param {string} ticketId
- * @returns {Promise<{ path: string, dataUrl: string } | null>}
+ * @returns {Promise<TicketImage | null>}
  */
 export async function readImage(file, ticketId) {
+  if (isPdf(file)) {
+    const { blob, kept, total } = await pdfToImage(file);
+    return { path: imagePath(ticketId, blob.type), dataUrl: await asDataUrl(blob), pages: { kept, total } };
+  }
   let type = file.type;
   if (!EXTENSIONS[type]) return null;
   /** @type {Blob} */
@@ -175,15 +185,14 @@ export async function readImage(file, ticketId) {
     blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
     type = 'image/jpeg';
   }
-  const path = `tickets/${ticketId}-${Date.now().toString(36)}.${EXTENSIONS[type]}`;
-  return { path, dataUrl: await asDataUrl(blob) };
+  return { path: imagePath(ticketId, type), dataUrl: await asDataUrl(blob) };
 }
 
 /**
  * Point a ticket at a new image, and drop the old one if no other ticket uses it.
  * @param {Payload} payload
  * @param {string} ticketId
- * @param {{ path: string, dataUrl: string }} image
+ * @param {TicketImage} image
  */
 export function setTicketImage(payload, ticketId, image) {
   const ticket = payload.trip.tickets[ticketId];

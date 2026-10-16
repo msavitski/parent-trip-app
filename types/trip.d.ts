@@ -120,6 +120,10 @@ export interface Day {
    */
   title: string | [string] | [string, {[name: string]: string | number}];
   note?: TextRef | null;
+  /**
+   * Only the admin password shows this day; the family sees "Plan coming later" (and its weather).
+   */
+  hidden?: boolean;
   events: Event[];
 }
 /**

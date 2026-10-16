@@ -5,7 +5,7 @@ A trip is a folder (`private/` for your real trip, `example/` for the demo):
 ```
 trip.json5                  dates, times, places, phone numbers, tickets: no readable text
 locales/<lang>/trip.json    the trip's words, one file per language
-tickets/                    ticket images (PNG, JPG, WEBP, GIF or SVG)
+tickets/                    ticket images (PNG, JPG, WEBP, GIF or SVG; a PDF becomes one in the app's Edit tab)
 ```
 
 `trip.json5` is [JSON5](https://json5.org): JSON plus comments, unquoted keys and trailing commas. Its shape is
@@ -56,6 +56,7 @@ To add a language (e.g. Belarusian): copy `web/locales/en/` to `web/locales/be/`
 | `weather`                 | `{ lat, lon }` of the destination; remove it to hide the weather                                                                                             |
 | `places`                  | Keyed by id; events, the taxi card and `help.hotel` refer to these ids                                                                                       |
 | `tickets`                 | Keyed by id; `image` is a path inside the data folder                                                                                                        |
+| `days[].hidden`           | `true`: only the admin password shows (and decrypts) the day; the family sees "Plan coming later", its weather, no tickets or places of its own              |
 | `days[].events[]`         | `time` (24 h, local), `icon` (plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase), `title`, optional `note`, `meet`, `place`, `ticket` |
 | `help.family`             | At least one contact; the first gets the big Call button                                                                                                     |
 | `lists[].id`              | Also the storage key of the ticks: don't rename it during a trip                                                                                             |

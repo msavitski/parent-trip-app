@@ -3,11 +3,11 @@
  * then a test drawing of every screen and sheet in every language with the edited trip, so a mistake
  * in the JSON editor can't reach the phones as a broken screen.
  *
- * @import { Payload, Problem } from '../../../types/app'
+ * @import { Payload, Problem, Role } from '../../../types/app'
  */
 import { setLang, t } from '../i18n.js';
 import { state } from '../state.js';
-import { initTrip } from '../trip.js';
+import { forFamily, initTrip } from '../trip.js';
 import { SCREENS } from '../ui/screens.js';
 import { renderSheet } from '../ui/sheets.js';
 import { languagesOf, refKey, refVars, textRefs } from './draft.js';
@@ -106,12 +106,14 @@ export function validate(payload) {
 }
 
 /**
- * Draw every screen and sheet with the edited trip in every language. Restores the app's state after.
+ * Draw every screen and sheet with the edited trip in every language, as the admin sees it and (with
+ * hidden days) as the family will. Restores the app's state after.
  * @param {Payload} payload
  * @returns {Problem[]}
  */
 function renderTest(payload) {
   const saved = {
+    role: state.role,
     trip: state.trip,
     settings: state.settings,
     days: state.days,
@@ -132,27 +134,36 @@ function renderTest(payload) {
       problems.set(where + message, { where, message });
     }
   };
+  const family = forFamily(payload);
+  /** @type {[Role, Payload][]} */
+  const views = [['admin', payload]];
+  if (family !== payload) views.push(['family', family]);
   try {
-    attempt('trip', () => initTrip(structuredClone(payload)));
-    if (problems.size) return [...problems.values()];
-    const trip = /** @type {NonNullable<typeof state.trip>} */ (state.trip);
-    for (const l of state.languages) {
-      setLang(l);
-      for (const [tab, draw] of Object.entries(SCREENS)) {
+    for (const [role, data] of views) {
+      state.role = role;
+      const before = problems.size;
+      attempt('trip', () => initTrip(structuredClone(data)));
+      if (problems.size > before) continue; // nothing to draw
+      const trip = /** @type {NonNullable<typeof state.trip>} */ (state.trip);
+      for (const l of state.languages) {
+        setLang(l);
+        for (const [tab, draw] of Object.entries(SCREENS)) {
+          state.dayOpen = null;
+          attempt(tab, draw);
+        }
+        state.days.forEach((_, i) => {
+          state.dayOpen = i;
+          attempt(`days[${i}]`, SCREENS.days);
+        });
         state.dayOpen = null;
-        attempt(tab, draw);
+        for (const id of Object.keys(trip.places))
+          attempt(`places.${id}`, () => renderSheet({ type: 'taxi', arg: id }));
+        for (const id of Object.keys(trip.tickets))
+          attempt(`tickets.${id}`, () => renderSheet({ type: 'ticket', arg: id }));
+        trip.phrases.forEach((_, i) => attempt(`phrases[${i}]`, () => renderSheet({ type: 'phrase', arg: i })));
+        attempt('tickets', () => renderSheet({ type: 'tickets' }));
+        attempt('money', () => renderSheet({ type: 'money' }));
       }
-      state.days.forEach((_, i) => {
-        state.dayOpen = i;
-        attempt(`days[${i}]`, SCREENS.days);
-      });
-      state.dayOpen = null;
-      for (const id of Object.keys(trip.places)) attempt(`places.${id}`, () => renderSheet({ type: 'taxi', arg: id }));
-      for (const id of Object.keys(trip.tickets))
-        attempt(`tickets.${id}`, () => renderSheet({ type: 'ticket', arg: id }));
-      trip.phrases.forEach((_, i) => attempt(`phrases[${i}]`, () => renderSheet({ type: 'phrase', arg: i })));
-      attempt('tickets', () => renderSheet({ type: 'tickets' }));
-      attempt('money', () => renderSheet({ type: 'money' }));
     }
   } finally {
     Object.assign(state, saved);

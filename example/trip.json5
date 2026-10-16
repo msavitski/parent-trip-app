@@ -43,6 +43,7 @@
   },
 
   // Tickets: put a screenshot of the real QR / barcode (PNG, JPG or SVG) into private/tickets/ and point "image" at it.
+  // A PDF ticket: add it in the app's Edit tab (admin mode), which turns its pages into one image.
   // The images are encrypted into trip.enc together with everything else.
   tickets: {
     flightOut: {
@@ -68,6 +69,7 @@
   },
 
   // icon: plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase
+  // hidden: true on a day: only the admin password shows it; the family sees "Plan coming later" and the weather.
   days: [
     {
       date: "2026-11-02", title: "d1.title", note: "d1.note",

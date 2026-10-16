@@ -1,11 +1,12 @@
 /**
  * The Edit tab (admin only): forms for days, events, places and tickets, a JSON editor for everything
  * else, and Publish. Forms change state.draft; the other tabs show the draft until it is published.
+ * Days can be hidden from the family (the eye in the list): their phones show "Plan coming later".
  *
  * This module draws screens and applies forms to the draft. Navigation and saving happen in
  * actions.js, so this module never imports app.js.
  *
- * @import { EditView, Payload } from '../../../types/app'
+ * @import { EditView, Payload, TicketImage } from '../../../types/app'
  * @import { Day, Event, TextRef } from '../../../types/trip'
  */
 import { Html, html, icon } from '../html.js';
@@ -13,7 +14,7 @@ import { meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { addDays, isoDate, parseDate, toMin } from '../trip.js';
 import { hello } from '../ui/components.js';
-import { isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
+import { dropUnusedImages, isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
 import { EVENT_ICONS, realDate } from './validate.js';
 
 /** @returns {Payload} */
@@ -78,8 +79,20 @@ const selectField = (name, labelKey, options, value) =>
  * @param {string} aside
  * @param {string} title
  */
-const row = (arg, aside, title) =>
-  html`<li><button class="edit-row" type="button" data-action="edit-open" data-arg="${arg}"><span class="mono">${aside}</span><span>${title}</span>${icon('chev', 'ic chev')}</button></li>`;
+const rowButton = (arg, aside, title) =>
+  html`<button class="edit-row" type="button" data-action="edit-open" data-arg="${arg}"><span class="mono">${aside}</span><span>${title}</span>${icon('chev', 'ic chev')}</button>`;
+
+/** @param {string} arg @param {string} aside @param {string} title */
+const row = (arg, aside, title) => html`<li>${rowButton(arg, aside, title)}</li>`;
+
+/**
+ * A day in the list, with the eye that shows it to the family or hides it.
+ * @param {Day} day
+ * @param {number} index
+ */
+const dayRow = (day, index) =>
+  html`<li class="edit-item${day.hidden ? ' edit-item--hidden' : ''}">${rowButton(`day:${index}`, day.date, tr(day.title))}
+    <button class="eye" type="button" data-action="edit-hide" data-arg="${index}" aria-pressed="${!day.hidden}" aria-label="${t('edit.day.shown')}" title="${t('edit.day.shown')}">${icon(day.hidden ? 'eyeOff' : 'eye')}</button></li>`;
 
 const back = () =>
   html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('edit.back')}</span></button>`;
@@ -117,14 +130,15 @@ function home() {
     <button class="btn btn--solid" type="button" data-action="publish"${!dirty || state.publishing ? html` disabled` : ''}>${icon('upload')}<span>${state.publishing ? t('edit.publishing') : t('edit.publish')}</span></button>
     ${dirty ? html`<button class="btn btn--quiet" type="button" data-action="discard"><span>${t('edit.discard')}</span></button>` : ''}
   </div>
-  <section class="section"><h2>${t('edit.days')}</h2>
-    <ul class="edit-list">${trip.days.map((day, i) => row(`day:${i}`, day.date, tr(day.title)))}</ul>
+  <section class="section"><h2>${t('edit.days')}</h2><p class="muted">${t('edit.daysNote')}</p>
+    <ul class="edit-list">${trip.days.map(dayRow)}</ul>
     <button class="btn" type="button" data-action="edit-open" data-arg="day:-1" style="align-self:flex-start">${icon('plus')}${t('edit.addDay')}</button></section>
   <section class="section"><h2>${t('edit.places')}</h2>
     <ul class="edit-list">${Object.entries(trip.places).map(([id, p]) => row(`place:${id}`, '', tr(p.name)))}</ul>
     <button class="btn" type="button" data-action="edit-open" data-arg="place:" style="align-self:flex-start">${icon('plus')}${t('edit.addPlace')}</button></section>
   <section class="section"><h2>${t('edit.tickets')}</h2>
-    <ul class="edit-list">${Object.entries(trip.tickets).map(([id, tk]) => row(`ticket:${id}`, tk.code, tr(tk.title)))}</ul></section>
+    <ul class="edit-list">${Object.entries(trip.tickets).map(([id, tk]) => row(`ticket:${id}`, tk.code, tr(tk.title)))}</ul>
+    <button class="btn" type="button" data-action="edit-open" data-arg="ticket:" style="align-self:flex-start">${icon('plus')}${t('edit.addTicket')}</button></section>
   <section class="section"><h2>${t('edit.more')}</h2><p class="muted">${t('edit.moreNote')}</p>
     <ul class="edit-list">${row('json:trip', '{ }', t('edit.json.trip'))}${langs().map((l) => row(`json:${l}`, '{ }', t('edit.json.texts', { lang: langName(l) })))}</ul></section>`;
 }
@@ -144,7 +158,8 @@ function dayView(index) {
     'day',
     html`${plainField('date', 'edit.day.date', date, 'type="date" required')}
     ${textField('title', 'edit.day.title', day?.title, { required: true })}
-    ${textField('note', 'edit.day.note', day?.note, { multiline: true })}`,
+    ${textField('note', 'edit.day.note', day?.note, { multiline: true })}
+    <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>`,
   )}
   ${
     isNew
@@ -194,22 +209,36 @@ function placeView(id) {
   )}`;
 }
 
-/** @param {Extract<EditView, { view: 'ticket' }>} v */
+/** File types a ticket can be made from (a PDF becomes an image). */
+const TICKET_FILES = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,.pdf';
+
+/**
+ * "Only the first 6 of 9 pages were kept", or '' when the whole file is in the image.
+ * @param {TicketImage | undefined} image
+ */
+export const pagesNote = (image) =>
+  image?.pages && image.pages.kept < image.pages.total ? t('edit.ticket.pdfPages', image.pages) : '';
+
+/** @param {Extract<EditView, { view: 'ticket' }>} v  id "": a new ticket */
 function ticketView(v) {
   const payload = draft();
   const ticket = payload.trip.tickets[v.id];
-  const image = v.image?.dataUrl ?? (ticket.image ? payload.images[ticket.image] : null);
-  return html`${back()}${hello(tr(ticket.title), tr(ticket.when), t('edit.tickets'))}
+  const image = v.image?.dataUrl ?? (ticket?.image ? payload.images[ticket.image] : null);
+  const note = pagesNote(v.image);
+  // choosing a file updates the picture in place (actions.js), so the text typed so far stays
+  return html`${back()}${hello(ticket ? tr(ticket.title) : t('edit.newTicket'), ticket ? tr(ticket.when) : '', t('edit.tickets'))}
   ${form(
     'ticket',
-    html`${textField('title', 'edit.ticket.title', ticket.title, { required: true })}
-    ${textField('when', 'edit.ticket.when', ticket.when, { required: true })}
-    ${plainField('code', 'edit.ticket.code', ticket.code, 'required')}
+    html`${textField('title', 'edit.ticket.title', ticket?.title, { required: true })}
+    ${textField('when', 'edit.ticket.when', ticket?.when, { required: true })}
+    ${plainField('code', 'edit.ticket.code', ticket?.code, 'required')}
     <div class="field"><span class="label">${t('edit.ticket.image')}</span>
-      ${image ? html`<img class="thumb" src="${image}" alt="">` : ''}
+      <img class="thumb" id="f-thumb" alt=""${image ? html` src="${image}"` : html` hidden`}>
+      <p class="muted small" id="f-pages"${note ? '' : html` hidden`}>${note}</p>
       <label class="btn" for="f-image">${icon('upload')}<span>${t('edit.ticket.replaceImage')}</span></label>
-      <input class="visually-hidden" id="f-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"></div>`,
-  )}`;
+      <input class="visually-hidden" id="f-image" type="file" accept="${TICKET_FILES}"></div>`,
+  )}
+  ${ticket ? html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="ticket:${v.id}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteTicket')}</span></button>` : ''}`;
 }
 
 /** @param {string} part  "trip" or a language code */
@@ -325,6 +354,8 @@ export function applyForm(formEl) {
     const note = setText(payload, day.note, typed(data, 'note'));
     if (note == null) delete day.note;
     else day.note = note;
+    if (data.get('hidden')) day.hidden = true;
+    else delete day.hidden;
     if (!trip.days.includes(day)) trip.days.push(day);
     trip.days.sort((a, b) => a.date.localeCompare(b.date));
     return null;
@@ -374,35 +405,55 @@ export function applyForm(formEl) {
   }
 
   if (v?.view === 'ticket') {
-    const ticket = trip.tickets[v.id];
     for (const name of ['title', 'when']) {
       const missing = needText(name);
       if (missing) return missing;
     }
     const code = value(data, 'code');
     if (!code) return { key: 'edit.err.code' };
-    ticket.title = /** @type {TextRef} */ (setText(payload, ticket.title, typed(data, 'title')));
-    ticket.when = /** @type {TextRef} */ (setText(payload, ticket.when, typed(data, 'when')));
+    const id = v.id || newId('t', trip.tickets);
+    const ticket = trip.tickets[id] ?? { title: '', when: '', code };
+    ticket.title = /** @type {TextRef} */ (setText(payload, ticket.title || null, typed(data, 'title')));
+    ticket.when = /** @type {TextRef} */ (setText(payload, ticket.when || null, typed(data, 'when')));
     ticket.code = code;
-    if (v.image) setTicketImage(payload, v.id, v.image);
+    trip.tickets[id] = ticket;
+    if (v.image) setTicketImage(payload, id, v.image);
     return null;
   }
   return null;
 }
 
 /**
- * Delete a day or an event: "day:2" or "event:2:3".
+ * Delete a day, an event or a ticket: "day:2", "event:2:3" or "ticket:boat".
  * @param {string} arg
  */
 export function deleteFromDraft(arg) {
-  const [kind, a, b] = arg.split(':').map((s, i) => (i ? Number(s) : s));
-  const trip = draft().trip;
+  const [kind, a = '', b = ''] = arg.split(':');
+  const payload = draft();
+  const trip = payload.trip;
   const days = trip.days;
   if (kind === 'day') {
-    days.splice(/** @type {number} */ (a), 1);
+    days.splice(Number(a), 1);
     // demo mode points at a day number: keep it pointing at a day that still exists
     const demo = trip.settings.demoTodayIsDay;
     if (demo && demo > days.length) trip.settings.demoTodayIsDay = days.length || null;
   }
-  if (kind === 'event') days[/** @type {number} */ (a)]?.events.splice(/** @type {number} */ (b), 1);
+  if (kind === 'event') days[Number(a)]?.events.splice(Number(b), 1);
+  if (kind === 'ticket') {
+    delete trip.tickets[a];
+    // its events stay in the plan, without the Ticket button
+    for (const day of days) for (const ev of day.events) if (ev.ticket === a) delete ev.ticket;
+    dropUnusedImages(payload);
+  }
+}
+
+/**
+ * Show a day to the family, or hide it (they see "Plan coming later"; the admin password shows it all).
+ * @param {number} index
+ */
+export function toggleHidden(index) {
+  const day = draft().trip.days[index];
+  if (!day) return;
+  if (day.hidden) delete day.hidden;
+  else day.hidden = true;
 }

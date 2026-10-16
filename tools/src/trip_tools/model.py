@@ -123,6 +123,10 @@ class Day(Model):
     date: IsoDate
     title: TextRef
     note: TextRef | None = None
+    hidden: bool = Field(
+        default=False,
+        description='Only the admin password shows this day; the family sees "Plan coming later" (and its weather).',
+    )
     events: list[Event]
 
 
