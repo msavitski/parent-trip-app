@@ -82,10 +82,9 @@ const ACTIONS = {
     }),
 
   forget: (el) =>
-    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'help.forgetConfirm', 'help.forget', () => {
-      forget();
-      location.replace(location.pathname);
-    }),
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'help.forgetConfirm', 'help.forget', () =>
+      forget().then(() => location.replace(location.pathname)),
+    ),
 
   'toggle-password'(el) {
     const input = /** @type {HTMLInputElement} */ (byId('pw'));
@@ -161,10 +160,15 @@ const ACTIONS = {
 
 /** The draft changed: keep it on this device, show it everywhere, and close the editor screen. */
 function changed() {
-  saveDraft();
   state.notice = null;
   useDraft();
   goBack();
+  // if the device can't keep it, say so (publishing still works from memory)
+  saveDraft().then((kept) => {
+    if (kept) return;
+    state.notice = { kind: 'warn', text: t('edit.draftNotSaved') };
+    render();
+  });
 }
 
 /** Save an editor form. @param {HTMLFormElement} form */

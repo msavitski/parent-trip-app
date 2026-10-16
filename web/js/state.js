@@ -21,6 +21,8 @@ export const state = {
   /** Admin: what the Edit tab says after Publish. */
   notice: /** @type {EditNotice | null} */ (null),
   publishing: false,
+  /** Admin: a version published from this device is still on its way to the site. */
+  pending: false,
 
   /** The opened trip (null until the password or a saved key opens it). */
   trip: /** @type {Trip | null} */ (null),

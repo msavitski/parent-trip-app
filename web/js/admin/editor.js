@@ -14,7 +14,6 @@ import { state } from '../state.js';
 import { addDays, isoDate, parseDate, toMin } from '../trip.js';
 import { hello } from '../ui/components.js';
 import { isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
-import { isPending } from './publish.js';
 import { EVENT_ICONS, realDate } from './validate.js';
 
 /** @returns {Payload} */
@@ -99,7 +98,7 @@ const form = (formName, body) =>
 /** The latest Publish result. */
 function notice() {
   const n = state.notice;
-  if (!n) return isPending() ? html`<p class="note">${icon('info')}<span>${t('edit.pending')}</span></p>` : '';
+  if (!n) return state.pending ? html`<p class="note">${icon('info')}<span>${t('edit.pending')}</span></p>` : '';
   return html`<section class="card notice notice--${n.kind}" role="status"><p>${n.text}</p>${
     n.problems?.length
       ? html`<ul class="problems">${n.problems.map((p) => html`<li><span class="mono">${p.where}</span> ${p.message}</li>`)}</ul>`
@@ -153,7 +152,7 @@ function dayView(index) {
       : html`<section class="section"><h2>${t('edit.events')}</h2>
     <ul class="edit-list">${sortedEvents(day).map(({ e, j }) => row(`event:${index}:${j}`, e.time, tr(e.title)))}</ul>
     <button class="btn" type="button" data-action="edit-open" data-arg="event:${index}:-1" style="align-self:flex-start">${icon('plus')}${t('edit.addEvent')}</button></section>
-  <button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="day:${index}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteDay')}</span></button>`
+  ${days.length > 1 ? html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="day:${index}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteDay')}</span></button>` : ''}`
   }`;
 }
 
@@ -316,6 +315,7 @@ export function applyForm(formEl) {
   if (v?.view === 'day') {
     const date = value(data, 'date');
     if (!realDate(date)) return { key: 'edit.err.dateForm' };
+    if (trip.days.some((d, i) => d.date === date && i !== v.day)) return { key: 'edit.err.dateTaken', vars: { date } };
     const missing = needText('title');
     if (missing) return missing;
     /** @type {Day} */

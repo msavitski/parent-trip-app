@@ -15,9 +15,9 @@
  */
 import { t } from '../i18n.js';
 import { state } from '../state.js';
-import { store } from '../util.js';
+import { bigStore } from '../util.js';
 import { fromBase64, sealTrip } from '../vault.js';
-import { dropUnusedEditorKeys } from './draft.js';
+import { dropUnusedEditorKeys, dropUnusedImages } from './draft.js';
 import { GitHubError, commit, readText } from './github.js';
 import { validate } from './validate.js';
 
@@ -28,24 +28,31 @@ const TRIP_HEADER =
   '// Published from the Our Trip app (admin mode). Comments are not kept when the app publishes.\n' +
   '// Edit it like any trip.json5, then `trip build` (pull this repository first).\n';
 
-const PENDING_MINUTES = 30;
+const PENDING = 'admin-pending';
+const PENDING_HOURS = 24;
+
+/** @typedef {{ at: number, enc: EncFile, replaced: string[] }} Pending  replaced: IVs of the versions it supersedes */
 
 /**
- * The trip.enc to use: a version just published from this device while the site still serves the one
- * it replaced, otherwise what was downloaded.
+ * The trip.enc to use. Right after publishing, GitHub Pages still serves an older version for a few
+ * minutes (and after several quick publishes, possibly one from before the first of them): while the
+ * site serves any version this device replaced, use the one it published. Once the site serves the new
+ * version, or one published elsewhere, use what was downloaded.
  * @param {EncFile} fetched
- * @returns {EncFile}
+ * @returns {Promise<EncFile>}
  */
-export function pendingEnc(fetched) {
-  const pending = store.get('pending', /** @type {{ base: string, at: number, enc: EncFile } | null} */ (null));
+export async function pendingEnc(fetched) {
+  /** @type {Pending | null} */
+  const pending = await bigStore.get(PENDING);
   if (!pending) return fetched;
-  if (pending.base === fetched.iv && Date.now() - pending.at < PENDING_MINUTES * 60e3) return pending.enc;
-  store.set('pending', null);
+  const fresh = Date.now() - pending.at < PENDING_HOURS * 3600e3;
+  if (fresh && pending.replaced.includes(fetched.iv)) {
+    state.pending = true;
+    return pending.enc;
+  }
+  await bigStore.set(PENDING, null);
   return fetched;
 }
-
-/** Whether a version published from this device is still on its way to the site. */
-export const isPending = () => !!store.get('pending', null);
 
 /** @param {unknown} error */
 function describe(error) {
@@ -58,7 +65,9 @@ function describe(error) {
 }
 
 /**
- * The readable copy for the private repository: what changed since `before`.
+ * The readable copy for the private repository: the whole trip (github.commit uploads only what differs
+ * from the repository, so a copy that failed once catches up on the next publish), and the deletion of
+ * ticket images that `before` had and the draft no longer has.
  * @param {Payload} draft
  * @param {Payload} before
  * @param {string} folder  "" for the repository's root
@@ -76,7 +85,7 @@ function readableFiles(draft, before, folder) {
     files.push({ path: at(`locales/${lang}/trip.json`), content: JSON.stringify(strings, null, 2) + '\n' });
   }
   for (const [path, dataUrl] of Object.entries(draft.images)) {
-    if (before.images[path] !== dataUrl) files.push({ path: at(path), content: fromBase64(dataUrl.split(',', 2)[1]) });
+    files.push({ path: at(path), content: fromBase64(dataUrl.split(',', 2)[1]) });
   }
   for (const path of Object.keys(before.images))
     if (!(path in draft.images)) files.push({ path: at(path), content: null });
@@ -93,6 +102,7 @@ export async function publish() {
     return { kind: 'error', text: t('edit.err.unexpected', { error: 'no draft' }) };
 
   dropUnusedEditorKeys(draft);
+  dropUnusedImages(draft);
   const problems = validate(draft);
   if (problems.length) return { kind: 'error', text: t('edit.problems'), problems };
 
@@ -114,10 +124,14 @@ export async function publish() {
     );
 
     // published: this is now the trip as it is online
-    store.set('pending', { base: enc.iv, at: Date.now(), enc: sealed });
-    store.set('draft', null);
+    /** @type {Pending | null} */
+    const previous = await bigStore.get(PENDING);
+    const replaced = [...(previous?.enc.iv === enc.iv ? previous.replaced : []), enc.iv];
+    await bigStore.set(PENDING, { at: Date.now(), enc: sealed, replaced });
+    await bigStore.set('admin-draft', null);
     state.enc = sealed;
     state.original = structuredClone(draft);
+    state.pending = true;
 
     try {
       await commit(

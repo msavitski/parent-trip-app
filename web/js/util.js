@@ -39,6 +39,44 @@ export const store = {
   },
 };
 
+/**
+ * Bigger storage for admin mode (the unpublished draft and the just-published trip.enc, which carry
+ * ticket images): the Cache Storage API, whose quota is far above localStorage's ~5 MB. The cache's
+ * name doesn't start with "our-trip-", so the offline worker never deletes it.
+ */
+const BIG = 'trip-admin';
+export const bigStore = {
+  /** @param {string} key @returns {Promise<any>} */
+  async get(key) {
+    try {
+      // caches.match with cacheName doesn't create the cache, so reading leaves nothing behind
+      const hit = await caches.match(key, { cacheName: BIG });
+      return hit ? await hit.json() : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Store a value, or delete it with null. Returns false if it couldn't be kept. @param {string} key @param {unknown} value */
+  async set(key, value) {
+    try {
+      const cache = await caches.open(BIG);
+      if (value == null) await cache.delete(key);
+      else
+        await cache.put(key, new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } }));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async clear() {
+    try {
+      await caches.delete(BIG);
+    } catch {}
+  },
+};
+
 /** @typedef {{ localName?: string | null, address: string }} Locatable */
 
 /** @param {Locatable} place */
