@@ -4,7 +4,7 @@ import importX, { createNodeResolver } from 'eslint-plugin-import-x';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/', '.venv/', 'types/'] },
+  { ignores: ['node_modules/', '.venv/', 'types/', 'web/vendor/'] },
 
   js.configs.recommended,
 

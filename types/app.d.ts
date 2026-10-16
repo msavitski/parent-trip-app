@@ -55,9 +55,19 @@ export type EditView =
   | { view: 'event'; day: number; event: number }
   /** id "": a new place */
   | { view: 'place'; id: string }
-  | { view: 'ticket'; id: string; image?: { path: string; dataUrl: string } }
+  /** id "": a new ticket. image: chosen but not saved yet */
+  | { view: 'ticket'; id: string; image?: TicketImage }
   /** "trip", or a language code for that language's trip texts */
   | { view: 'json'; part: string };
+
+/** A ticket image read from a file in the Edit tab. */
+export interface TicketImage {
+  /** Where it goes in the trip data folder, e.g. "tickets/boat-m1x2y3.png". */
+  path: string;
+  dataUrl: string;
+  /** Made from a PDF: how many of its pages are in the image. */
+  pages?: { kept: number; total: number };
+}
 
 /** Something to fix before publishing. */
 export interface Problem {

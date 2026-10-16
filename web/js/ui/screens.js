@@ -6,7 +6,18 @@ import { cap, fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { canSpeak, currentTrip, daysBetween, todayIndex } from '../trip.js';
 import { mapUrl, store, telUrl } from '../util.js';
-import { dayCard, hello, nextSign, noteBox, person, tiles, timeline, weatherCard } from './components.js';
+import {
+  dayCard,
+  hello,
+  hiddenNote,
+  isSecret,
+  nextSign,
+  noteBox,
+  person,
+  tiles,
+  timeline,
+  weatherCard,
+} from './components.js';
 
 /** @type {Record<string, number[]>} ticked items per list, kept in memory too in case storage is blocked */
 const checks = {};
@@ -43,7 +54,10 @@ function today() {
     return html`${hello(t('today.freeDay'), cap(fmt.long.format(new Date())))}${weatherCard(new Date())}${tiles()}`;
 
   const day = days[index];
-  return html`${hello(t('today.dayXofY', { x: day.n, y: days.length }), `${tr(day.title)} · ${cap(fmt.long.format(day.when))}`)}
+  const big = t('today.dayXofY', { x: day.n, y: days.length });
+  if (isSecret(day))
+    return html`${hello(big, cap(fmt.long.format(day.when)))}${hiddenNote(day)}${weatherCard(day.when)}${tiles()}`;
+  return html`${hello(big, `${tr(day.title)} · ${cap(fmt.long.format(day.when))}`)}${hiddenNote(day)}
     ${nextSign(day)}${weatherCard(day.when)}${tiles()}${day.note ? noteBox(tr(day.note)) : ''}
     <section class="section"><h2>${t('today.plan')}</h2>${timeline(day, true)}</section>`;
 }
@@ -52,9 +66,10 @@ function days() {
   const all = state.days;
   if (state.dayOpen != null) {
     const day = all[state.dayOpen];
+    const secret = isSecret(day);
     return html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('days.back')}</span></button>
-      ${hello(tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }))}
-      ${weatherCard(day.when)}${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, new Date()) === 0)}`;
+      ${hello(secret ? t('day.hidden') : tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }))}${hiddenNote(day)}
+      ${weatherCard(day.when)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, new Date()) === 0)}`}`;
   }
   const range = `${fmt.short.format(all[0].when)} – ${fmt.short.format(all[all.length - 1].when)}`;
   return html`${hello(t('days.title'), range)}<ol class="days">${all.map((day, i) => html`<li>${dayCard(day, i)}</li>`)}</ol>`;

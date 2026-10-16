@@ -3,6 +3,9 @@ schema/
 types/trip.d.ts
 web/trip.enc
 
+# third-party (pdf.js), copied as published
+web/vendor/
+
 # data files are formatted by hand (aligned columns are easier to read)
 example/
 private/

@@ -5,7 +5,7 @@
  * @import { SheetType, Tab } from '../../types/app'
  */
 import { discardDraft, readImage, saveDraft } from './admin/draft.js';
-import { applyForm, deleteFromDraft, parseEditArg } from './admin/editor.js';
+import { applyForm, deleteFromDraft, pagesNote, parseEditArg, toggleHidden } from './admin/editor.js';
 import { publish } from './admin/publish.js';
 import {
   applyLanguage,
@@ -55,6 +55,9 @@ function confirmTwice(button, label, confirmKey, normalKey, onConfirm) {
     label.textContent = t(normalKey);
   }, 4000);
 }
+
+/** What a Delete button says, by what it deletes. @type {Record<string, string>} */
+const DELETE_LABELS = { day: 'edit.deleteDay', event: 'edit.deleteEvent', ticket: 'edit.deleteTicket' };
 
 /** @type {Record<string, (el: HTMLElement, arg: string) => void>} */
 const ACTIONS = {
@@ -121,12 +124,17 @@ const ACTIONS = {
       el,
       /** @type {HTMLElement} */ (el.querySelector('span')),
       'edit.deleteConfirm',
-      arg.startsWith('day:') ? 'edit.deleteDay' : 'edit.deleteEvent',
+      DELETE_LABELS[arg.split(':')[0]] ?? 'edit.deleteEvent',
       () => {
         deleteFromDraft(arg);
         changed();
       },
     ),
+
+  'edit-hide'(_, arg) {
+    toggleHidden(Number(arg));
+    changed(false);
+  },
 
   discard: (el) =>
     confirmTwice(
@@ -158,11 +166,15 @@ const ACTIONS = {
   },
 };
 
-/** The draft changed: keep it on this device, show it everywhere, and close the editor screen. */
-function changed() {
+/**
+ * The draft changed: keep it on this device, show it everywhere, and close the editor screen.
+ * @param {boolean} [close]  false: stay on this screen (the eye in the list of days)
+ */
+function changed(close = true) {
   state.notice = null;
   useDraft();
-  goBack();
+  if (close) goBack();
+  else render();
   // if the device can't keep it, say so (publishing still works from memory)
   saveDraft().then((kept) => {
     if (kept) return;
@@ -181,20 +193,45 @@ function onEditSubmit(form) {
   box.scrollIntoView({ block: 'center' });
 }
 
-/** A new ticket image was chosen: show it; Save puts it in the draft. @param {HTMLInputElement} input */
+/**
+ * A ticket image or PDF was chosen: show it; Save puts it in the draft. The picture is updated in place,
+ * so the text typed into the form so far stays. A PDF takes a moment (and pdf.js the first time).
+ * @param {HTMLInputElement} input
+ */
 async function onImage(input) {
   const top = state.edit[state.edit.length - 1];
   const file = input.files?.[0];
   if (!file || top?.view !== 'ticket') return;
-  const image = await readImage(file, top.id);
+  const box = byId('form-err');
+  const label = input.labels?.[0]?.querySelector('span');
+  box.hidden = true;
+  input.disabled = true;
+  if (label) label.textContent = t('edit.ticket.reading');
+  /** @type {Awaited<ReturnType<typeof readImage>>} */
+  let image = null;
+  let error = 'edit.err.imageType';
+  try {
+    image = await readImage(file, top.id);
+  } catch (reason) {
+    console.error(reason);
+    error = 'edit.err.pdf';
+  }
+  input.value = '';
+  if (state.edit[state.edit.length - 1] !== top || !input.isConnected) return; // the admin went elsewhere meanwhile
+  input.disabled = false;
+  if (label) label.textContent = t('edit.ticket.replaceImage');
   if (!image) {
-    const box = byId('form-err');
-    box.textContent = t('edit.err.imageType');
+    box.textContent = t(error);
     box.hidden = false;
     return;
   }
   top.image = image;
-  render();
+  const thumb = /** @type {HTMLImageElement} */ (byId('f-thumb'));
+  thumb.src = image.dataUrl;
+  thumb.hidden = false;
+  const note = byId('f-pages');
+  note.textContent = pagesNote(image);
+  note.hidden = !note.textContent;
 }
 
 /** Tick or untick a checklist item. @param {HTMLInputElement} box */

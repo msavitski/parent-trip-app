@@ -33,7 +33,7 @@ compiling anything.
 | `html.js`           | `html` tagged template (escapes every value) and the icon set                                   |
 | `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats               |
 | `vault.js`          | `trip.enc`: fetch, derive key, decrypt, remember/forget the key                                 |
-| `trip.js`           | Turn the decrypted payload into the current trip (demo date shift, sorted events); date helpers |
+| `trip.js`           | Turn the payload into the current trip (demo shift, sorted events, family's view); date helpers |
 | `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                        |
 | `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                            |
 | `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header         |
@@ -41,6 +41,7 @@ compiling anything.
 | `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                               |
 | `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft               |
 | `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device         |
+| `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed      |
 | `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language       |
 | `admin/publish.js`  | Publish: conflict check, re-encrypt with the same data key, commit both repositories            |
 | `admin/github.js`   | The few GitHub API calls: read a file, one commit with several files                            |
@@ -69,10 +70,16 @@ Rules that keep it maintainable:
 | `our-trip-app-<hash>` | Every file in `web/` except `sw.js`, `trip.enc` | Installed all-or-nothing, cache-first |
 | `our-trip-data`       | `trip.enc`                                      | Network-first (3 s), then cache       |
 | `our-trip-fonts`      | Google Fonts                                    | Cache-first                           |
+| `our-trip-vendor`     | `vendor/` (pdf.js, admin mode only)             | Cache-first, on first use             |
 
 The file list and `<hash>` are generated into `sw.js` by `trip precache` (CI checks they're current). Any change in
 `web/` changes `sw.js`, so phones download the new snapshot in the background and use it from the next launch. A
 phone never runs a mix of old and new files. Trip updates don't touch `sw.js` and show on the same launch.
+
+`vendor/` is left out of the snapshot, so the family's phones never download pdf.js (about 1.7 MB). It holds
+`pdf.min.mjs`, `pdf.worker.min.mjs` and `LICENSE` from the `pdfjs-dist` npm package, in a folder named after the
+version. To update it, copy those files into a new `vendor/pdfjs-<version>/`, point `PDFJS` in `admin/pdf.js` at it,
+delete the old folder and run `trip precache`.
 
 `activate` deletes only caches named `our-trip-*`: other sites on the same `github.io` origin keep theirs.
 

@@ -133,6 +133,11 @@ def _check_references(trip: Trip, data: DataDir, report: Report) -> None:
             report.error(f"tickets.{name}.image", "must be inside the data folder")
         elif not file.is_file():
             report.error(f"tickets.{name}.image", f"{ticket.image} does not exist")
+        elif file.suffix.lower() == ".pdf":
+            report.error(
+                f"tickets.{name}.image",
+                "is a PDF: add it in the app's Edit tab (it turns the pages into an image), or use a screenshot",
+            )
         elif file.suffix.lower() not in IMAGE_TYPES:
             report.error(f"tickets.{name}.image", f"use {', '.join(IMAGE_TYPES)} (not {file.suffix})")
 

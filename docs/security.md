@@ -39,6 +39,10 @@ the admin settings; the admin password opens everything.
   write to the two repositories (not delete them, not touch settings, workflows or your other repositories). Make it
   long, different from the family password (the tools refuse the same one), and give the token an expiry date.
 
+**Hidden days are hidden from the family app, not encrypted apart.** They travel in the same encrypted trip as
+the rest, and the family's phones leave them out when they open it. That keeps a surprise from the parents, but
+someone with the family password and a computer's developer tools could read them. Don't put real secrets there.
+
 It does **not** protect an unlocked phone: like a ticket app, anyone holding it can open the trip (and on an admin
 phone, edit and publish). Help → "Forget the password" locks it again.
 

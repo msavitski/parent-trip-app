@@ -26,6 +26,13 @@ export function hello(big, sub, eyebrow) {
 /** @param {string} text */
 export const noteBox = (text) => html`<p class="note">${icon('info')}<span>${text}</span></p>`;
 
+/** A day hidden from the family, seen by the family: only its date, weather and "Plan coming later". @param {TripDay} day */
+export const isSecret = (day) => !!day.hidden && state.role !== 'admin';
+
+/** Under a hidden day's header: what the family sees, or (admin) that they don't see it. @param {TripDay} day */
+export const hiddenNote = (day) =>
+  day.hidden ? noteBox(isSecret(day) ? t('day.hiddenNote') : t('day.hiddenAdmin')) : '';
+
 /** "in 2 h 15 min" @param {number} minutes */
 function inText(minutes) {
   const h = Math.floor(minutes / 60);
@@ -128,9 +135,10 @@ export function dayCard(day, index) {
       : rel < 0
         ? html`<span class="tag tag--done">${t('badge.done')}</span>`
         : html`<span></span>`;
-  return html`<button class="day${rel === 0 ? ' day--today' : ''}" type="button" data-action="day" data-arg="${index}">
+  const secret = isSecret(day);
+  return html`<button class="day${rel === 0 ? ' day--today' : ''}${secret ? ' day--secret' : ''}" type="button" data-action="day" data-arg="${index}">
     <span class="leaf"><small>${fmt.weekday.format(day.when)}</small><b>${day.when.getDate()}</b><small>${fmt.month.format(day.when)}</small></span>
-    <span class="day-main"><span class="day-n">${t('day.n', { n: day.n })}</span><span class="day-t">${tr(day.title)}</span>${weatherMini(day.when)}</span>
+    <span class="day-main"><span class="day-n">${t('day.n', { n: day.n })}${day.hidden && !secret ? html`<span class="hidden-mark">${icon('eyeOff')}${t('badge.hidden')}</span>` : ''}</span><span class="day-t">${secret ? t('day.hidden') : tr(day.title)}</span>${weatherMini(day.when)}</span>
     ${tag}${icon('chev', 'ic chev')}</button>`;
 }
 

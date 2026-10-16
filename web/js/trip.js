@@ -52,6 +52,47 @@ export const todayIndex = () => state.days.findIndex((d) => daysBetween(d.when, 
 export const canSpeak = () => canSpeakIn(state.settings.speechLang);
 
 /**
+ * What the family sees. A hidden day keeps its date (so Today counts the days right and shows its weather)
+ * but not its plan: Today and Days say "Plan coming later". Tickets and places that only hidden days use
+ * are left out too, so the Tickets list and the taxi card don't give the plan away. The admin password
+ * sees everything, with hidden days marked.
+ * @param {Payload} payload
+ * @returns {Payload}
+ */
+export function forFamily(payload) {
+  const trip = payload.trip;
+  const days = trip.days;
+  if (!days?.some((d) => d.hidden)) return payload;
+  /** @param {boolean} hidden @param {'place' | 'ticket'} field */
+  const usedBy = (hidden, field) =>
+    new Set(days.filter((d) => !!d.hidden === hidden).flatMap((d) => (d.events ?? []).map((e) => e[field])));
+  /**
+   * @template T
+   * @param {Record<string, T>} all
+   * @param {'place' | 'ticket'} field
+   * @param {unknown} [always]  an id that stays whatever uses it (the hotel)
+   */
+  const withoutSecret = (all, field, always) => {
+    const shown = usedBy(false, field);
+    const secret = usedBy(true, field);
+    return Object.fromEntries(
+      Object.entries(all ?? {}).filter(([id]) => id === always || shown.has(id) || !secret.has(id)),
+    );
+  };
+  return {
+    ...payload,
+    trip: {
+      ...trip,
+      days: /** @type {Trip['days']} */ (
+        days.map((d) => (d.hidden ? { date: d.date, title: '', events: [], hidden: true } : d))
+      ),
+      tickets: withoutSecret(trip.tickets, 'ticket'),
+      places: withoutSecret(trip.places, 'place', trip.help?.hotel),
+    },
+  };
+}
+
+/**
  * Take a decrypted payload as the current trip.
  * @param {Payload} payload
  */

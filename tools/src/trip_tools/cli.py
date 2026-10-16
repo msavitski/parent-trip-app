@@ -126,6 +126,17 @@ def _refuse_if_behind(project: Project, data: DataDir, fetch: bool) -> None:
         )
 
 
+def _note_hidden_days(trip: dict[str, Any], enc: vault.EncFile) -> None:
+    """Say which days the family doesn't see, and if nobody can see them (no admin password yet)."""
+    hidden = [day.get("date", "?") for day in trip.get("days", []) if day.get("hidden")]
+    if not hidden:
+        return
+    print(f'Hidden from the family (they see "Plan coming later"): {", ".join(hidden)}.')
+    if enc.version == 1:
+        print("This trip has only the family password, so nobody sees those days. Add an admin password:")
+        print("  trip password admin")
+
+
 def cmd_build(project: Project, args: argparse.Namespace) -> None:
     data = _data_dir(project, args.data)
     out = project.resolve(args.out) if args.out else project.trip_enc
@@ -156,6 +167,7 @@ def cmd_build(project: Project, args: argparse.Namespace) -> None:
         link_password = password if opened.role == "family" else None
     enc.save(out)
     print(f"Wrote {_rel(project, out)} ({out.stat().st_size // 1024} KB) from {_rel(project, data.path)}.")
+    _note_hidden_days(bundle.read_trip(data), enc)
     if out.resolve() == project.trip_enc.resolve():
         print("Commit and push it to update the phones.")
     _warn_if_published(project)
