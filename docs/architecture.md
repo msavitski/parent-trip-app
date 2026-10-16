@@ -13,6 +13,9 @@ web/locales/<lang>/app.json (UI words) ───┤
 Open-Meteo forecast (live, cached) ───────┤
                                           ▼
                                    web/js/app.js renders the screens
+
+admin password → Edit tab (web/js/admin) → GitHub API: web/trip.enc to the site repo,
+                                           readable trip data to the private repo
 ```
 
 The site has no build step: the browser loads `web/js/main.js` as a native ES module, and it imports the rest.
@@ -21,21 +24,31 @@ compiling anything.
 
 ## Frontend modules (`web/js/`)
 
-| Module             | Responsibility                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------- |
-| `main.js`          | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form)  |
-| `app.js`           | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline              |
-| `actions.js`       | What taps do: `data-action="…"` → named handler; checkboxes, money input, login form            |
-| `state.js`         | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing          |
-| `html.js`          | `html` tagged template (escapes every value) and the icon set                                   |
-| `i18n.js`          | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats               |
-| `vault.js`         | `trip.enc`: fetch, derive key, decrypt, remember/forget the key                                 |
-| `trip.js`          | Turn the decrypted payload into the current trip (demo date shift, sorted events); date helpers |
-| `weather.js`       | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                        |
-| `util.js`          | Storage, map/phone links, money formatting, speech, screen wake lock                            |
-| `ui/components.js` | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header         |
-| `ui/screens.js`    | The five tabs, login and message screens                                                        |
-| `ui/sheets.js`     | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                               |
+| Module              | Responsibility                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form)  |
+| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline              |
+| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money input, login form            |
+| `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing          |
+| `html.js`           | `html` tagged template (escapes every value) and the icon set                                   |
+| `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats               |
+| `vault.js`          | `trip.enc`: fetch, derive key, decrypt, remember/forget the key                                 |
+| `trip.js`           | Turn the decrypted payload into the current trip (demo date shift, sorted events); date helpers |
+| `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                        |
+| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                            |
+| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header         |
+| `ui/screens.js`     | The five tabs, login and message screens                                                        |
+| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                               |
+| `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft               |
+| `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device         |
+| `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language       |
+| `admin/publish.js`  | Publish: conflict check, re-encrypt with the same data key, commit both repositories            |
+| `admin/github.js`   | The few GitHub API calls: read a file, one commit with several files                            |
+
+Admin mode never changes how the family app works: the editor shows a draft (`state.draft`) on every tab until it is
+published, and a family password never gets the Edit tab. The forms turn typed text into translation keys: a key
+used by one field is edited in place, and a shared key (or one with `{placeholders}`) gets a new `ed.*` key, so
+editing one event never changes another.
 
 Rules that keep it maintainable:
 
@@ -67,27 +80,29 @@ The weather API isn't cached by the worker: the app keeps the last forecast in `
 
 ## Stored on the phone (`localStorage`)
 
-| Key                | Value                                             |
-| ------------------ | ------------------------------------------------- |
-| `trip:key`         | The derived key and the salt/rounds it belongs to |
-| `trip:lang`        | Language chosen on the Help page                  |
-| `trip:weather`     | Last forecast (up to 40 days)                     |
-| `trip:checks:<id>` | Ticked items of a checklist                       |
+| Key                | Value                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `trip:key`         | The derived key and the salt/rounds it belongs to            |
+| `trip:lang`        | Language chosen on the Help page                             |
+| `trip:weather`     | Last forecast (up to 40 days)                                |
+| `trip:checks:<id>` | Ticked items of a checklist                                  |
+| `trip:draft`       | Admin: unpublished edits, and the trip.enc they started from |
+| `trip:pending`     | Admin: the version just published, until the site serves it  |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
 
 ## Tools (`tools/src/trip_tools/`)
 
-| Module        | Responsibility                                                     |
-| ------------- | ------------------------------------------------------------------ |
-| `cli.py`      | The `trip` command                                                 |
-| `model.py`    | Pydantic models of `trip.json5`; JSON schema generation            |
-| `checks.py`   | Shape, references and translation checks with readable error paths |
-| `bundle.py`   | Read a data folder; assemble the payload; unpack it again          |
-| `vault.py`    | Encrypt/decrypt `trip.enc`; password rules; salt reuse             |
-| `precache.py` | Generate the offline file list and version in `web/sw.js`          |
-| `serve.py`    | Local server with correct MIME types and no caching                |
-| `paths.py`    | Repository layout                                                  |
+| Module        | Responsibility                                                            |
+| ------------- | ------------------------------------------------------------------------- |
+| `cli.py`      | The `trip` command                                                        |
+| `model.py`    | Pydantic models of `trip.json5`; JSON schema generation                   |
+| `checks.py`   | Shape, references and translation checks with readable error paths        |
+| `bundle.py`   | Read a data folder; assemble the payload; unpack it again                 |
+| `vault.py`    | `trip.enc` v1/v2: key slots, admin settings, password changes; salt reuse |
+| `precache.py` | Generate the offline file list and version in `web/sw.js`                 |
+| `serve.py`    | Local server with correct MIME types and no caching                       |
+| `paths.py`    | Repository layout                                                         |
 
 The payload encrypted into `trip.enc` is the **raw** `trip.json5` (minus `$schema`), not a re-serialised model, so
 validation changes can never change what the app receives.
