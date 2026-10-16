@@ -69,9 +69,10 @@ export function initTrip(payload) {
     if (ticket.image && payload.images?.[ticket.image]) ticket.image = payload.images[ticket.image];
   }
 
-  // demo mode: move the whole trip so that the chosen day is today
+  // demo mode: move the whole trip so that the chosen day is today (a day that doesn't exist means no demo)
   const demoDay = state.settings.demoTodayIsDay;
-  const shift = demoDay ? daysBetween(parseDate(trip.days[demoDay - 1].date), new Date()) : 0;
+  const anchor = demoDay ? trip.days[demoDay - 1] : undefined;
+  const shift = anchor ? daysBetween(parseDate(anchor.date), new Date()) : 0;
   state.days = trip.days.map(
     (day, i) =>
       /** @type {TripDay} */ ({

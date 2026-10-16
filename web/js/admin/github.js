@@ -80,32 +80,56 @@ export async function readText(config, target) {
 }
 
 /**
+ * Git's id of a file's content (SHA-1 of "blob <size>\0" + content), to skip files that are unchanged.
+ * @param {Uint8Array} bytes
+ */
+async function blobSha(bytes) {
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const all = new Uint8Array(header.length + bytes.length);
+  all.set(header);
+  all.set(bytes, header.length);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', all));
+  return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * One commit on top of the branch: write the files with content, delete those with content null.
+ * Files the branch already has with the same content are skipped, and so is the commit if nothing is
+ * left, so sending the whole set every time is cheap and a copy that failed once catches up later.
  * @param {AdminConfig} config
  * @param {string} repo
  * @param {string} branch
  * @param {{ path: string, content: string | Uint8Array | null }[]} files
  * @param {string} message
- * @returns {Promise<string>} the new commit's sha
+ * @returns {Promise<string>} the new commit's sha (or the branch's head if nothing changed)
  */
 export async function commit(config, repo, branch, files, message) {
   const json = async (/** @type {Response} */ r) => r.json();
   const ref = await json(await call(config, repo, 'GET', `/git/ref/heads/${encodeURIComponent(branch)}`));
   const head = ref.object.sha;
   const base = await json(await call(config, repo, 'GET', `/git/commits/${head}`));
+  const listing = await json(await call(config, repo, 'GET', `/git/trees/${base.tree.sha}?recursive=1`));
+  /** @type {Map<string, string>} path -> blob sha, for the files the branch has now */
+  const existing = new Map(
+    listing.tree
+      .filter((/** @type {{ type: string }} */ e) => e.type === 'blob')
+      .map((/** @type {{ path: string, sha: string }} */ e) => [e.path, e.sha]),
+  );
 
   const tree = [];
   for (const file of files) {
     if (file.content == null) {
-      tree.push({ path: file.path, mode: '100644', type: 'blob', sha: null });
+      if (existing.has(file.path)) tree.push({ path: file.path, mode: '100644', type: 'blob', sha: null });
       continue;
     }
     const bytes = typeof file.content === 'string' ? new TextEncoder().encode(file.content) : file.content;
+    if (existing.get(file.path) === (await blobSha(bytes))) continue;
     const blob = await json(
       await call(config, repo, 'POST', '/git/blobs', { content: toBase64(bytes), encoding: 'base64' }),
     );
     tree.push({ path: file.path, mode: '100644', type: 'blob', sha: blob.sha });
   }
+  if (!tree.length) return head;
   const newTree = await json(await call(config, repo, 'POST', '/git/trees', { base_tree: base.tree.sha, tree }));
   const created = await json(
     await call(config, repo, 'POST', '/git/commits', { message, tree: newTree.sha, parents: [head] }),

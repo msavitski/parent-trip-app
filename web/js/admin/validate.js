@@ -65,6 +65,17 @@ export function validate(payload) {
     });
   });
   if (!places[trip.help?.hotel]) add('help.hotel', 'edit.err.place', { value: trip.help?.hotel ?? '' });
+
+  // settings (as in tools/…/checks.py)
+  const days = trip.days?.length ?? 0;
+  const demo = trip.settings?.demoTodayIsDay;
+  if (demo != null && (!Number.isInteger(demo) || demo < 1 || demo > days)) {
+    add('settings.demoTodayIsDay', 'edit.err.demoDay', { value: String(demo), count: days });
+  }
+  const forced = trip.settings?.language;
+  if (forced && !trip.settings.languages?.includes(forced))
+    add('settings.language', 'edit.err.language', { value: forced });
+
   const ids = new Set();
   (trip.lists ?? []).forEach((list, i) => {
     if (ids.has(list.id)) add(`lists[${i}].id`, 'edit.err.listId', { value: list.id });

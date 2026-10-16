@@ -22,7 +22,7 @@ async function boot() {
   const fetched = await fetchEnc();
   if (!fetched) return showScreen(messageScreen('login.noData', true));
   // admin: a version just published from this device that the site isn't serving yet
-  const enc = pendingEnc(fetched);
+  const enc = await pendingEnc(fetched);
   state.enc = enc;
 
   // 1. a setup link: …/#unlock=<password> (the part after # never leaves the phone)

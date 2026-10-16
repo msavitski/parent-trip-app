@@ -80,16 +80,25 @@ The weather API isn't cached by the worker: the app keeps the last forecast in `
 
 ## Stored on the phone (`localStorage`)
 
-| Key                | Value                                                        |
-| ------------------ | ------------------------------------------------------------ |
-| `trip:key`         | The derived key and the salt/rounds it belongs to            |
-| `trip:lang`        | Language chosen on the Help page                             |
-| `trip:weather`     | Last forecast (up to 40 days)                                |
-| `trip:checks:<id>` | Ticked items of a checklist                                  |
-| `trip:draft`       | Admin: unpublished edits, and the trip.enc they started from |
-| `trip:pending`     | Admin: the version just published, until the site serves it  |
+| Key                | Value                                             |
+| ------------------ | ------------------------------------------------- |
+| `trip:key`         | The derived key and the salt/rounds it belongs to |
+| `trip:lang`        | Language chosen on the Help page                  |
+| `trip:weather`     | Last forecast (up to 40 days)                     |
+| `trip:checks:<id>` | Ticked items of a checklist                       |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
+
+Admin mode keeps two bigger values (they carry ticket images) in the Cache Storage cache **`trip-admin`**, whose
+quota is far above `localStorage`'s ~5 MB. The name doesn't start with `our-trip-`, so the offline worker never
+deletes it; "Forget the password" does.
+
+| Key             | Value                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `admin-draft`   | Unpublished edits and the `trip.enc` they started from (a damaged one is dropped on start) |
+| `admin-pending` | The version just published, and every version it replaced, until the site serves it        |
+
+Version 0.0.2 kept the draft in `localStorage` (`trip:draft`); the app moves it over once.
 
 ## Tools (`tools/src/trip_tools/`)
 

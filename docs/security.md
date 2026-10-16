@@ -59,8 +59,9 @@ phone, edit and publish). Help → "Forget the password" locks it again.
   (`trip:key`), with the salt and rounds it belongs to. The app then opens without asking, also offline.
 - The decrypted trip exists only in memory while the app is open. Ticket images are not saved to the gallery.
 - The offline cache holds `trip.enc` encrypted, as published.
-- Admin phones also keep unpublished edits (`trip:draft`) and the version just published (`trip:pending`) until the
-  site serves it. "Forget the password" removes both.
+- Admin phones also keep unpublished edits and the version just published (until the site serves it) in the
+  browser's Cache Storage (`trip-admin`). Edits are kept readable there, like the derived key that opens the trip.
+  "Forget the password" removes both.
 
 ## Passwords
 

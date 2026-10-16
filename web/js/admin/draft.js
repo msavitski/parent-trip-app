@@ -10,8 +10,9 @@
  * @import { Payload } from '../../../types/app'
  * @import { TextRef } from '../../../types/trip'
  */
+import { t } from '../i18n.js';
 import { state } from '../state.js';
-import { store } from '../util.js';
+import { bigStore, store } from '../util.js';
 
 /** Translation keys look like "d1.title" or "ev.hagia.note" (same rule as tools/…/model.py). */
 export const KEY_PATTERN = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$/;
@@ -194,25 +195,58 @@ export function setTicketImage(payload, ticketId, image) {
   }
 }
 
+/** Drop ticket images that no ticket uses any more (left over from edits). @param {Payload} payload */
+export function dropUnusedImages(payload) {
+  const used = new Set(Object.values(payload.trip.tickets ?? {}).map((tk) => tk.image));
+  for (const path of Object.keys(payload.images ?? {})) if (!used.has(path)) delete payload.images[path];
+}
+
 /* ---------- keeping unpublished changes on this device ---------- */
+
+const DRAFT = 'admin-draft';
 
 /** Whether the draft differs from what is published. */
 export const isDirty = () => !!state.draft && JSON.stringify(state.draft) !== JSON.stringify(state.original);
 
-/** Save the draft on this device (it belongs to the trip.enc it was started from). */
-export function saveDraft() {
-  if (!state.enc) return;
-  store.set('draft', isDirty() ? { base: state.enc.iv, payload: state.draft } : null);
+/**
+ * Keep the draft on this device (it belongs to the trip.enc it was started from).
+ * Returns false if the device couldn't keep it.
+ */
+export async function saveDraft() {
+  if (!state.enc) return false;
+  return bigStore.set(DRAFT, isDirty() ? { base: state.enc.iv, payload: state.draft } : null);
 }
 
-/** The saved draft, if it was started from the trip.enc that is open now. @returns {Payload | null} */
-export function loadDraft() {
-  const saved = store.get('draft', /** @type {{ base: string, payload: Payload } | null} */ (null));
-  return saved && state.enc && saved.base === state.enc.iv ? saved.payload : null;
+/**
+ * The saved draft, if it was started from the trip.enc that is open now. A draft for an older version
+ * (the trip was published from somewhere else since) is set aside with a notice, never dropped silently.
+ * @returns {Promise<Payload | null>}
+ */
+export async function loadDraft() {
+  /** @type {{ base: string, payload: Payload } | null} */
+  let saved = await bigStore.get(DRAFT);
+  // version 0.0.2 kept the draft in localStorage: move it over once
+  const legacy = store.get('draft', /** @type {typeof saved} */ (null));
+  if (legacy) {
+    saved ??= legacy;
+    store.set('draft', null);
+    await bigStore.set(DRAFT, saved);
+  }
+  const usable = (/** @type {any} */ p) => !!p && typeof p.trip === 'object' && typeof p.locales === 'object';
+  if (!saved || !state.enc) return null;
+  if (!usable(saved.payload)) {
+    state.notice = { kind: 'warn', text: t('edit.draftBroken') };
+    await bigStore.set(DRAFT, null);
+    return null;
+  }
+  if (saved.base === state.enc.iv) return saved.payload;
+  state.notice = { kind: 'warn', text: t('edit.draftStale') };
+  await bigStore.set(DRAFT, null);
+  return null;
 }
 
 /** Throw the changes away. */
-export function discardDraft() {
+export async function discardDraft() {
   state.draft = structuredClone(state.original);
-  store.set('draft', null);
+  await bigStore.set(DRAFT, null);
 }

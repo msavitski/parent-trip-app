@@ -3,7 +3,7 @@
  *
  * @import { EditView, Opened, SheetType, Tab } from '../../types/app'
  */
-import { loadDraft } from './admin/draft.js';
+import { discardDraft, loadDraft } from './admin/draft.js';
 import { editScreen } from './admin/editor.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
@@ -254,9 +254,18 @@ export async function start(opened) {
   state.role = opened.role;
   if (opened.role === 'admin') {
     state.original = structuredClone(opened.payload);
-    state.draft = loadDraft() ?? structuredClone(opened.payload);
+    state.draft = (await loadDraft()) ?? structuredClone(opened.payload);
   }
-  initTrip(structuredClone(state.draft ?? opened.payload));
+  try {
+    initTrip(structuredClone(state.draft ?? opened.payload));
+  } catch (error) {
+    // a broken draft must never lock the admin out: drop it and open the published trip
+    if (!state.draft) throw error;
+    console.error(error);
+    await discardDraft();
+    state.notice = { kind: 'warn', text: t('edit.draftBroken') };
+    initTrip(structuredClone(opened.payload));
+  }
   await Promise.all(state.languages.map(loadApp));
   applyLanguage(pickLang());
   tabsEl.hidden = false;

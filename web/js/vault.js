@@ -16,7 +16,7 @@
  *
  * @import { AdminConfig, EncFile, Opened, Payload } from '../../types/app'
  */
-import { store } from './util.js';
+import { bigStore, store } from './util.js';
 
 const KEY_BYTES = 32;
 
@@ -148,5 +148,8 @@ export function savedKey(enc) {
   return { key: fromBase64(saved.key), fits: saved.salt === enc.salt && saved.iter === enc.iter };
 }
 
-/** Forget the key and everything else this app saved, except the chosen language. */
-export const forget = () => store.clearTrip();
+/** Forget the key and everything else this app saved (admin drafts too), except the chosen language. */
+export async function forget() {
+  store.clearTrip();
+  await bigStore.clear();
+}
