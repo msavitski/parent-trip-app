@@ -1,6 +1,6 @@
 {
-  "trip.title": "Istanbul",
-  "trip.welcome": "We fly on 2 November. Pack the night before, and keep your passports in the small bag.",
+  "trip.title": "Many-many countries",
+  "trip.welcome": "I'm soo happy to see you!",
 
   "place.hotel": "Lale Garden Hotel",
   "place.airport": "Istanbul Airport",
@@ -70,7 +70,7 @@
   "meet.lobbyAt": "Hotel lobby at {time}",
   "meet.lobbyBags": "Hotel lobby with suitcases",
 
-  "help.alex.note": "Our phone. Also on Viber and Telegram.",
+  "help.mike.note": "Our phone. Also on Viber and Telegram.",
   "help.sam.note": "At home. Call if {name} does not answer.",
   "help.lost.1": "Stay where you are. Don’t walk off to look for us.",
   "help.lost.2": "Call {first}. If there is no answer, call {second}.",
