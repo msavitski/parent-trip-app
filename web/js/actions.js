@@ -4,7 +4,22 @@
  *
  * @import { SheetType, Tab } from '../../types/app'
  */
-import { applyLanguage, goBack, openDay, openSheet, render, retargetSheet, setTab, start, topSheet } from './app.js';
+import { discardDraft, readImage, saveDraft } from './admin/draft.js';
+import { applyForm, deleteFromDraft, parseEditArg } from './admin/editor.js';
+import { publish } from './admin/publish.js';
+import {
+  applyLanguage,
+  goBack,
+  openDay,
+  openEdit,
+  openSheet,
+  render,
+  retargetSheet,
+  setTab,
+  start,
+  topSheet,
+  useDraft,
+} from './app.js';
 import { icon, mount } from './html.js';
 import { t } from './i18n.js';
 import { state } from './state.js';
@@ -94,7 +109,89 @@ const ACTIONS = {
     sheet.dir = sheet.dir === 'home' ? 'local' : 'home';
     moneyUpdate(sheet, true);
   },
+
+  /* ---------- admin: the Edit tab ---------- */
+
+  'edit-open'(_, arg) {
+    const editView = parseEditArg(arg);
+    if (editView) openEdit(editView);
+  },
+
+  'edit-delete': (el, arg) =>
+    confirmTwice(
+      el,
+      /** @type {HTMLElement} */ (el.querySelector('span')),
+      'edit.deleteConfirm',
+      arg.startsWith('day:') ? 'edit.deleteDay' : 'edit.deleteEvent',
+      () => {
+        deleteFromDraft(arg);
+        changed();
+      },
+    ),
+
+  discard: (el) =>
+    confirmTwice(
+      el,
+      /** @type {HTMLElement} */ (el.querySelector('span')),
+      'edit.discardConfirm',
+      'edit.discard',
+      () => {
+        discardDraft();
+        state.notice = null;
+        useDraft();
+        render();
+      },
+    ),
+
+  async publish() {
+    if (state.publishing) return;
+    state.publishing = true;
+    state.notice = null;
+    render();
+    try {
+      state.notice = await publish();
+    } finally {
+      state.publishing = false;
+      useDraft();
+      render();
+      window.scrollTo(0, 0);
+    }
+  },
 };
+
+/** The draft changed: keep it on this device, show it everywhere, and close the editor screen. */
+function changed() {
+  saveDraft();
+  state.notice = null;
+  useDraft();
+  goBack();
+}
+
+/** Save an editor form. @param {HTMLFormElement} form */
+function onEditSubmit(form) {
+  const error = applyForm(form);
+  if (!error) return changed();
+  const box = byId('form-err');
+  box.textContent = t(error.key, error.vars);
+  box.hidden = false;
+  box.scrollIntoView({ block: 'center' });
+}
+
+/** A new ticket image was chosen: show it; Save puts it in the draft. @param {HTMLInputElement} input */
+async function onImage(input) {
+  const top = state.edit[state.edit.length - 1];
+  const file = input.files?.[0];
+  if (!file || top?.view !== 'ticket') return;
+  const image = await readImage(file, top.id);
+  if (!image) {
+    const box = byId('form-err');
+    box.textContent = t('edit.err.imageType');
+    box.hidden = false;
+    return;
+  }
+  top.image = image;
+  render();
+}
 
 /** Tick or untick a checklist item. @param {HTMLInputElement} box */
 function onCheck(box) {
@@ -125,8 +222,8 @@ async function onLogin(event) {
   goLabel.textContent = t('login.opening');
   error.hidden = true;
   const key = await deriveKey(input.value, enc);
-  const payload = await openTrip(key, enc);
-  if (!payload) {
+  const opened = await openTrip(key, enc);
+  if (!opened) {
     go.disabled = false;
     goLabel.textContent = t('login.open');
     error.textContent = t('login.wrong');
@@ -135,7 +232,7 @@ async function onLogin(event) {
     return;
   }
   remember(key, enc);
-  start(payload);
+  start(opened);
 }
 
 /** Attach the listeners once. */
@@ -149,12 +246,19 @@ export function listen() {
   document.addEventListener('change', (event) => {
     const el = event.target;
     if (el instanceof HTMLInputElement && el.dataset.list) onCheck(el);
+    if (el instanceof HTMLInputElement && el.id === 'f-image') onImage(el);
   });
   document.addEventListener('input', (event) => {
     const sheet = topSheet();
     if (/** @type {Element} */ (event.target).id === 'm-in' && sheet) moneyCalc(sheet);
   });
   document.addEventListener('submit', (event) => {
-    if (/** @type {Element} */ (event.target).id === 'login') onLogin(event);
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.id === 'login') onLogin(event);
+    if (form.id === 'edit-form') {
+      event.preventDefault();
+      onEditSubmit(form);
+    }
   });
 }

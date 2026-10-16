@@ -3,6 +3,7 @@
  * a setup link (…/#unlock=<password>), the key saved on this phone, or the password form.
  */
 import { listen } from './actions.js';
+import { pendingEnc } from './admin/publish.js';
 import { applyLanguage, showScreen, start } from './app.js';
 import { loadApp, pickLoginLang } from './i18n.js';
 import { state } from './state.js';
@@ -18,8 +19,10 @@ async function boot() {
   await loadApp('en');
   if (!globalThis.crypto?.subtle) return showScreen(messageScreen('login.unsupported'));
 
-  const enc = await fetchEnc();
-  if (!enc) return showScreen(messageScreen('login.noData', true));
+  const fetched = await fetchEnc();
+  if (!fetched) return showScreen(messageScreen('login.noData', true));
+  // admin: a version just published from this device that the site isn't serving yet
+  const enc = pendingEnc(fetched);
   state.enc = enc;
 
   // 1. a setup link: …/#unlock=<password> (the part after # never leaves the phone)
@@ -27,18 +30,18 @@ async function boot() {
   if (link) {
     history.replaceState(null, '', location.pathname + location.search);
     const key = await deriveKey(decodeURIComponent(link[1]), enc);
-    const payload = await openTrip(key, enc);
-    if (payload) {
+    const opened = await openTrip(key, enc);
+    if (opened) {
       remember(key, enc);
-      return start(payload);
+      return start(opened);
     }
   }
 
   // 2. already opened on this phone
   const saved = savedKey(enc);
   if (saved?.fits) {
-    const payload = await openTrip(saved.key, enc);
-    if (payload) return start(payload);
+    const opened = await openTrip(saved.key, enc);
+    if (opened) return start(opened);
   }
 
   // 3. ask; a saved key that no longer fits means the password was changed

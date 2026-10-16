@@ -3,12 +3,24 @@
  * without import cycles. Only plain data lives here; behaviour lives in the modules that use it.
  *
  * @import { Settings, Trip } from '../../types/trip'
- * @import { EncFile, Sheet, Strings, Tab, TripDay } from '../../types/app'
+ * @import { EditNotice, EditView, EncFile, Opened, Payload, Role, Sheet, Strings, Tab, TripDay } from '../../types/app'
  */
 
 export const state = {
   /** The encrypted trip file, once downloaded. */
   enc: /** @type {EncFile | null} */ (null),
+  /** Which password opened it, with the keys and (admin) the GitHub settings. Memory only. */
+  opened: /** @type {Opened | null} */ (null),
+  role: /** @type {Role} */ ('family'),
+
+  /** Admin: the trip as published, and the edited copy the screens show. */
+  original: /** @type {Payload | null} */ (null),
+  draft: /** @type {Payload | null} */ (null),
+  /** Admin: screens open inside the Edit tab, innermost last (Back closes them). */
+  edit: /** @type {EditView[]} */ ([]),
+  /** Admin: what the Edit tab says after Publish. */
+  notice: /** @type {EditNotice | null} */ (null),
+  publishing: false,
 
   /** The opened trip (null until the password or a saved key opens it). */
   trip: /** @type {Trip | null} */ (null),
