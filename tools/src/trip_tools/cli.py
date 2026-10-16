@@ -127,14 +127,16 @@ def _refuse_if_behind(project: Project, data: DataDir, fetch: bool) -> None:
 
 
 def _note_hidden_days(trip: dict[str, Any], enc: vault.EncFile) -> None:
-    """Say which days the family doesn't see, and if nobody can see them (no admin password yet)."""
-    hidden = [day.get("date", "?") for day in trip.get("days", []) if day.get("hidden")]
+    """Say which days the family doesn't see, and if their plans had to be left out (no admin password yet)."""
+    hidden = bundle.hidden_days(trip)
     if not hidden:
         return
     print(f'Hidden from the family (they see "Plan coming later"): {", ".join(hidden)}.')
-    if enc.version == 1:
-        print("This trip has only the family password, so nobody sees those days. Add an admin password:")
-        print("  trip password admin")
+    if enc.hidden:
+        print("Their plans are encrypted for the admin password only: the family password can't decrypt them.")
+    elif not enc.two_passwords and bundle.has_hidden_plans(trip):
+        print("This trip has only the family password, so their plans were left out of trip.enc. Add an admin")
+        print("password, then build again with it:  trip password admin")
 
 
 def cmd_build(project: Project, args: argparse.Namespace) -> None:
@@ -147,10 +149,11 @@ def cmd_build(project: Project, args: argparse.Namespace) -> None:
     if out.resolve() == project.trip_enc.resolve():
         _refuse_if_behind(project, data, fetch=not args.no_fetch)
 
+    trip = bundle.read_trip(data)
     payload = bundle.payload(data)
     link_password: str | None = None
     if not out.is_file() or args.new_password:
-        if out.is_file() and vault.EncFile.load(out).version == 2:
+        if out.is_file() and vault.EncFile.load(out).two_passwords:
             raise Fail("This trip has a family and an admin password. Change the family one with: trip password family")
         password = vault.ask_password(
             "New family password: ", confirm=True, env=(vault.NEW_PASSWORD_ENV, vault.PASSWORD_ENV)
@@ -161,13 +164,17 @@ def cmd_build(project: Project, args: argparse.Namespace) -> None:
         link_password = password
     else:
         # the password must open the current file, so a typo can't lock the phones out
-        password = vault.ask_password("Password (family or admin): ")
-        opened = vault.unlock(vault.EncFile.load(out), password)
+        current = vault.EncFile.load(out)
+        needs_admin = current.two_passwords and bundle.has_hidden_plans(trip)  # see vault.with_payload
+        password = vault.ask_password(
+            "Admin password (the trip has hidden days): " if needs_admin else "Password (family or admin): "
+        )
+        opened = vault.unlock(current, password)
         enc = vault.with_payload(opened, payload)
         link_password = password if opened.role == "family" else None
     enc.save(out)
     print(f"Wrote {_rel(project, out)} ({out.stat().st_size // 1024} KB) from {_rel(project, data.path)}.")
-    _note_hidden_days(bundle.read_trip(data), enc)
+    _note_hidden_days(trip, enc)
     if out.resolve() == project.trip_enc.resolve():
         print("Commit and push it to update the phones.")
     _warn_if_published(project)
@@ -194,6 +201,10 @@ def cmd_unpack(project: Project, args: argparse.Namespace) -> None:
     opened = vault.open_file(enc)
     files = bundle.unpack(opened.payload, out)
     print(f"Wrote {len(files)} files to {out}. Comments from the original trip.json5 are not in trip.enc.")
+    if opened.missing_hidden:
+        hidden = ", ".join(bundle.hidden_days(json.loads(opened.payload)["trip"]))
+        print(f"Opened with the family password: the hidden days ({hidden}) are not in it, only their dates.")
+        print("The admin password unpacks them too.")
 
 
 def _enc_path(project: Project, args: argparse.Namespace) -> Path:
@@ -219,20 +230,29 @@ def cmd_password(project: Project, args: argparse.Namespace) -> None:
     path = _enc_path(project, args)
     enc = vault.EncFile.load(path)
     if args.role == "admin":
-        prompt = "Current admin password, or the family password: " if enc.version == 2 else "Family password: "
+        prompt = "Current admin password, or the family password: " if enc.two_passwords else "Family password: "
         opened = vault.unlock(enc, vault.ask_password(prompt))
-        if enc.version == 2 and opened.role == "family":
+        if enc.two_passwords and opened.role == "family":
             print("Opened with the family password: the admin settings (GitHub token) start empty.")
             print("Set them again afterwards with: trip admin")
+            if opened.missing_hidden:
+                print("The hidden days can't be kept either: only the old admin password decrypts them.")
+                print("Put them back afterwards with: trip build (with the new admin password)")
         new = _new_password(enc, "family", "New admin password: ")
-        vault.set_admin_password(opened, new).save(path)
+        saved = vault.set_admin_password(opened, new)
+        saved.save(path)
         print(f"Saved {_rel(project, path)}. The family password and the phones are not affected.")
         if enc.version == 1:
             print("The trip now has two passwords. Next, give the app your GitHub token: trip admin")
+            if saved.hidden:
+                print("The hidden days' plans are now encrypted for the admin password only.")
+            elif bundle.hidden_days(json.loads(opened.payload)["trip"]):
+                print("The hidden days are empty in trip.enc (with one password their plans were left out).")
+                print("Add them with: trip build (with the admin password)")
     else:
-        prompt = "Admin password: " if enc.version == 2 else "Current family password: "
+        prompt = "Admin password: " if enc.two_passwords else "Current family password: "
         opened = vault.unlock(enc, vault.ask_password(prompt))
-        if enc.version == 2 and opened.role != "admin":
+        if enc.two_passwords and opened.role != "admin":
             raise Fail("Changing the family password of a two-password trip needs the admin password.")
         new = _new_password(enc, "admin", "New family password: ")
         vault.set_family_password(opened, new).save(path)
@@ -277,7 +297,7 @@ DEFAULT_API = "https://api.github.com"
 def cmd_admin(project: Project, args: argparse.Namespace) -> None:
     path = _enc_path(project, args)
     enc = vault.EncFile.load(path)
-    if enc.version != 2:
+    if not enc.two_passwords:
         raise Fail("This trip has only a family password. Add the admin password first: trip password admin")
     opened = vault.unlock(enc, vault.ask_password("Admin password: "))
     if opened.role != "admin":

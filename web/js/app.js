@@ -247,7 +247,8 @@ function watch() {
 
 /**
  * Start the app with an opened trip. The admin sees (and edits) a draft copy of everything; the family
- * sees hidden days as "Plan coming later".
+ * sees hidden days as "Plan coming later". The family password only decrypts its own part of trip.enc,
+ * which already is forFamily's result; it still matters for a trip.enc made before that (0.0.4).
  * @param {Opened} opened
  */
 export async function start(opened) {

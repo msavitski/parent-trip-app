@@ -56,7 +56,7 @@ To add a language (e.g. Belarusian): copy `web/locales/en/` to `web/locales/be/`
 | `weather`                 | `{ lat, lon }` of the destination; remove it to hide the weather                                                                                             |
 | `places`                  | Keyed by id; events, the taxi card and `help.hotel` refer to these ids                                                                                       |
 | `tickets`                 | Keyed by id; `image` is a path inside the data folder                                                                                                        |
-| `days[].hidden`           | `true`: only the admin password shows the day; the family sees "Plan coming later", its weather, no tickets or places of its own                             |
+| `days[].hidden`           | `true`: only the admin password shows (and decrypts) the day; the family sees "Plan coming later", its weather, no tickets or places of its own              |
 | `days[].events[]`         | `time` (24 h, local), `icon` (plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase), `title`, optional `note`, `meet`, `place`, `ticket` |
 | `help.family`             | At least one contact; the first gets the big Call button                                                                                                     |
 | `lists[].id`              | Also the storage key of the ticks: don't rename it during a trip                                                                                             |

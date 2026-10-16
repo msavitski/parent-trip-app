@@ -85,12 +85,15 @@ the parents' phones get the update within a few minutes. See [security](docs/sec
   draws the PDF's pages (up to 6, blank ones skipped, white margins trimmed) into one image, so the phones show it
   like any other ticket, offline. The first PDF needs the internet once, to load the PDF reader (pdf.js).
 - **Hidden days.** The eye next to each day in Edit hides it from the family: their phones show "Plan coming later"
-  and the weather for that date, and leave out the tickets and places only hidden days use. The admin password
-  always shows every day, marked as hidden. In `trip.json5` it's `hidden: true` on the day.
+  and the weather for that date, and leave out the tickets and places only hidden days use. Their plans are
+  encrypted for the admin password only, so the family password can't decrypt them at all
+  ([security](docs/security.md)). The admin password always shows every day, marked as hidden. In `trip.json5` it's
+  `hidden: true` on the day; `trip build` then needs the admin password.
 
 Both need this version of the app on the phones. After deploying it, open the app twice on each phone with internet
-(see [Deployment](#deployment)) before you hide a day or add a PDF ticket: an older version shows hidden days, and
-squeezes a PDF ticket into a square.
+(see [Deployment](#deployment)) before you hide a day or add a PDF ticket: an older version shows a hidden day as an
+empty day, and squeezes a PDF ticket into a square. An older app (or older tools) can't publish a trip with hidden
+days: it refuses rather than drop them.
 
 One-time setup:
 

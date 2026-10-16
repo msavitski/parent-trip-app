@@ -8,17 +8,25 @@
  *       slots.admin  = AES-GCM(PBKDF2(admin password), data key + admin key)
  *       admin        = AES-GCM(admin key, admin settings JSON)
  *       and data is encrypted with the data key.
+ *   v3: v2 plus hidden = AES-GCM(admin key, hidden part), when a hidden day has a plan. data then holds
+ *       the family part (forFamily), and hidden the whole trip with its texts, plus the ticket images data
+ *       doesn't have: the family password can't decrypt hidden days at all. The admin password opens
+ *       both parts and merges them. App versions before v3 only publish over a v2 file, so they refuse
+ *       a v3 one rather than drop its hidden part.
  * Both slots use the one salt, so the key a phone saved (PBKDF2 of the family password) opens the
- * trip in v1 and in v2 alike. Passwords are trimmed, NFC-normalised and UTF-8, as in the tools.
+ * trip in every version. Passwords are trimmed, NFC-normalised and UTF-8, as in the tools.
  *
  * The phone keeps the password's derived key (not the password) in localStorage "trip:key", so the app
  * opens offline without asking again.
  *
  * @import { AdminConfig, EncFile, Opened, Payload } from '../../types/app'
  */
+import { forFamily, hasHiddenPlans } from './trip.js';
 import { bigStore, store } from './util.js';
 
 const KEY_BYTES = 32;
+/** The two-password versions: 3 with a hidden part, 2 without. */
+const TWO_PASSWORDS = [2, 3];
 
 /** @param {string} b64 */
 export const fromBase64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -85,8 +93,38 @@ async function encrypt(rawKey, plain) {
 /** @param {Uint8Array} bytes */
 const parse = (bytes) => JSON.parse(new TextDecoder().decode(bytes));
 
+/** @param {Payload} payload */
+const encode = (payload) => new TextEncoder().encode(JSON.stringify(payload));
+
 /**
- * Open the trip with a password's derived key: the family or (v2) the admin password.
+ * The payload as trip.enc v3 keeps it (the same as tools/…/bundle.py split): the family part
+ * (forFamily), and the hidden part: the whole trip with its texts, plus only the ticket images the family
+ * part doesn't have. hidden is null when no hidden day has a plan: then the family part is all there is.
+ * @param {Payload} payload
+ * @returns {{ family: Payload, hidden: Payload | null }}
+ */
+export function splitPayload(payload) {
+  const family = forFamily(payload);
+  if (!hasHiddenPlans(payload.trip)) return { family, hidden: null };
+  const images = Object.fromEntries(Object.entries(payload.images ?? {}).filter(([path]) => !(path in family.images)));
+  return { family, hidden: { trip: payload.trip, locales: payload.locales, images } };
+}
+
+/**
+ * The whole payload again, from the two parts of splitPayload.
+ * @param {Payload} family
+ * @param {Payload} hidden
+ * @returns {Payload}
+ */
+export const mergePayload = (family, hidden) => ({
+  trip: hidden.trip,
+  locales: hidden.locales,
+  images: { ...family.images, ...hidden.images },
+});
+
+/**
+ * Open the trip with a password's derived key: the family or (v2, v3) the admin password. The admin
+ * password also opens the hidden part (v3) and gets the whole trip; the family gets its part only.
  * Returns null if the key opens nothing.
  * @param {Uint8Array<ArrayBuffer>} rawKey
  * @param {EncFile} enc
@@ -105,29 +143,43 @@ export async function openTrip(rawKey, enc) {
     const adminKey = keys.length > KEY_BYTES ? keys.slice(KEY_BYTES) : null;
     const plain = await decrypt(dataKey, enc.iv, enc.data);
     if (!plain) return null;
+    /** @type {Payload} */
+    let payload = parse(plain);
+    if (adminKey && enc.hidden) {
+      const hidden = await decrypt(adminKey, enc.hidden.iv, enc.hidden.data);
+      if (!hidden) return null;
+      payload = mergePayload(payload, parse(hidden));
+    }
     /** @type {AdminConfig | null} */
     let admin = null;
     if (adminKey && enc.admin) {
       const config = await decrypt(adminKey, enc.admin.iv, enc.admin.data);
       admin = config ? parse(config) : null;
     }
-    return { role, payload: parse(plain), dataKey, adminKey, admin };
+    return { role, payload, dataKey, adminKey, admin };
   }
   return null;
 }
 
 /**
  * The trip file with a new payload: same salt, slots and admin settings, so both passwords and every
- * phone's saved key keep working (admin mode's Publish). Only for two-password (v2) trips.
+ * phone's saved key keep working (admin mode's Publish). Only for two-password trips (v2, v3).
+ * The payload is split (splitPayload): the family part is encrypted with the data key and the hidden
+ * part with the admin key, so the file is v3 with hidden days that have a plan, and v2 without.
  * @param {Payload} payload
  * @param {Opened} opened
  * @param {EncFile} enc
  * @returns {Promise<EncFile>}
  */
 export async function sealTrip(payload, opened, enc) {
-  if (enc.v !== 2) throw new Error('Publishing needs a two-password trip.enc (trip password admin)');
-  const plain = new TextEncoder().encode(JSON.stringify(payload));
-  return { ...enc, ...(await encrypt(opened.dataKey, plain)) };
+  if (!TWO_PASSWORDS.includes(enc.v)) throw new Error('Publishing needs a two-password trip.enc (trip password admin)');
+  const { family, hidden } = splitPayload(payload);
+  if (hidden && !opened.adminKey) throw new Error('Only the admin password can publish hidden days');
+  /** @type {EncFile} */
+  const sealed = { ...enc, v: hidden ? 3 : 2, ...(await encrypt(opened.dataKey, encode(family))) };
+  delete sealed.hidden;
+  if (hidden && opened.adminKey) sealed.hidden = await encrypt(opened.adminKey, encode(hidden));
+  return sealed;
 }
 
 /**

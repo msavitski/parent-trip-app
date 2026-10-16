@@ -51,11 +51,37 @@ export const todayIndex = () => state.days.findIndex((d) => daysBetween(d.when, 
 /** Whether "Hear it" buttons can work for this trip's destination language. */
 export const canSpeak = () => canSpeakIn(state.settings.speechLang);
 
+/** Plural forms of a translation key ("today.startsIn.few"). */
+const PLURAL = /\.(zero|one|two|few|many|other)$/;
+
+/**
+ * Every string value in a trip: translation keys, image paths and the rest.
+ * @param {unknown} node
+ * @param {Set<string>} [found]
+ */
+function stringsIn(node, found = new Set()) {
+  if (typeof node === 'string') found.add(node);
+  else if (node && typeof node === 'object') for (const value of Object.values(node)) stringsIn(value, found);
+  return found;
+}
+
+/**
+ * Whether a hidden day has anything to keep from the family (a title, a note or events).
+ * @param {Trip} trip
+ */
+export const hasHiddenPlans = (trip) =>
+  (trip.days ?? []).some((d) => d.hidden && (d.title || d.note || d.events?.length));
+
 /**
  * What the family sees. A hidden day keeps its date (so Today counts the days right and shows its weather)
  * but not its plan: Today and Days say "Plan coming later". Tickets and places that only hidden days use
- * are left out too, so the Tickets list and the taxi card don't give the plan away. The admin password
- * sees everything, with hidden days marked.
+ * are left out too, so the Tickets list and the taxi card don't give the plan away, and so are the
+ * translation keys and ticket images only the left-out parts use. The admin password sees everything,
+ * with hidden days marked.
+ *
+ * trip.enc keeps exactly this for the family password (vault.sealTrip and tools/…/bundle.py for_family,
+ * which must stay the same as this), so on the family's phones the payload already is this, and running
+ * it again changes nothing.
  * @param {Payload} payload
  * @returns {Payload}
  */
@@ -79,16 +105,30 @@ export function forFamily(payload) {
       Object.entries(all ?? {}).filter(([id]) => id === always || shown.has(id) || !secret.has(id)),
     );
   };
+  /** @type {Trip} */
+  const familyTrip = {
+    ...trip,
+    days: /** @type {Trip['days']} */ (
+      days.map((d) => (d.hidden ? { date: d.date, title: '', events: [], hidden: true } : d))
+    ),
+    tickets: withoutSecret(trip.tickets, 'ticket'),
+    places: withoutSecret(trip.places, 'place', trip.help?.hotel),
+  };
+  // whatever only the left-out parts mention: their translation keys (and plural forms), ticket images
+  const kept = stringsIn(familyTrip);
+  const secret = new Set([...stringsIn(trip)].filter((s) => !kept.has(s)));
+  /** @param {string} key */
+  const isSecret = (key) => secret.has(key) || secret.has(key.replace(PLURAL, ''));
   return {
     ...payload,
-    trip: {
-      ...trip,
-      days: /** @type {Trip['days']} */ (
-        days.map((d) => (d.hidden ? { date: d.date, title: '', events: [], hidden: true } : d))
-      ),
-      tickets: withoutSecret(trip.tickets, 'ticket'),
-      places: withoutSecret(trip.places, 'place', trip.help?.hotel),
-    },
+    trip: familyTrip,
+    locales: Object.fromEntries(
+      Object.entries(payload.locales ?? {}).map(([lang, strings]) => [
+        lang,
+        Object.fromEntries(Object.entries(strings).filter(([key]) => !isSecret(key))),
+      ]),
+    ),
+    images: Object.fromEntries(Object.entries(payload.images ?? {}).filter(([path]) => !secret.has(path))),
   };
 }
 
