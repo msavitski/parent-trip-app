@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p jsconfig.json && tsc -p jsconfig.sw.json",
-    "types": "json2ts -i schema/trip.schema.json -o types/trip.d.ts --no-additionalProperties --unreachableDefinitions --bannerComment \"/* Generated from schema/trip.schema.json by `npm run types`. Do not edit: change tools/src/trip_tools/model.py, then run `trip schema` and `npm run types`. */\"",
+    "types": "json2ts -i schema/trip.schema.json -o types/trip.d.ts --no-additionalProperties --unreachableDefinitions --bannerComment \"/* Generated from schema/trip.schema.json by 'npm run types'. Do not edit: change tools/src/trip_tools/model.py, then run 'trip schema' and 'npm run types'. */\"",
     "check": "npm run format:check && npm run lint && npm run typecheck"
   },
   "devDependencies": {

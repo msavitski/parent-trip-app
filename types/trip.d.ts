@@ -1,4 +1,4 @@
-/* Generated from schema/trip.schema.json by `npm run types`. Do not edit: change tools/src/trip_tools/model.py, then run `trip schema` and `npm run types`. */
+/* Generated from schema/trip.schema.json by 'npm run types'. Do not edit: change tools/src/trip_tools/model.py, then run 'trip schema' and 'npm run types'. */
 
 /**
  * A translation key ("d1.title") or a key with values for its placeholders (["meet.lobbyAt", {"time": "09:45"}]).
