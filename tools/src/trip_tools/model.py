@@ -116,7 +116,17 @@ class Event(Model):
     note: TextRef | None = None
     meet: TextRef | None = None
     place: Id | None = Field(default=None, description="A key of `places`.")
-    ticket: Id | None = Field(default=None, description="A key of `tickets`.")
+    ticket: Id | list[Id] | None = Field(
+        default=None,
+        description='A key of `tickets`, or a list of them (one ticket per person, e.g. ["busMum", "busDad"]).',
+    )
+
+    @property
+    def tickets(self) -> list[str]:
+        """The event's ticket ids, however many."""
+        if self.ticket is None:
+            return []
+        return [self.ticket] if isinstance(self.ticket, str) else self.ticket
 
 
 class Day(Model):
@@ -198,6 +208,9 @@ class Phrase(Model):
 class Trip(Model):
     schema_: str | None = Field(default=None, alias="$schema", description="For editors only; ignored by the app.")
     title: TextRef
+    welcome: TextRef | None = Field(
+        default=None, description="A greeting on Today before the trip starts (Day 0), e.g. who to call, what to pack."
+    )
     settings: Settings
     weather: Weather | None = None
     places: dict[str, Place]

@@ -128,7 +128,22 @@ export async function pickLoginLang() {
   return 'en';
 }
 
-/** The language chosen on the Help page, if any. */
+/** Languages offered on the login screen (all the app has: the trip's own list is still locked). */
+export let loginLangs = /** @type {string[]} */ ([]);
+
+/** Load the app's languages (locales/languages.json, written by `trip precache`) for the login screen. */
+export async function loadLoginLangs() {
+  try {
+    const response = await fetch('locales/languages.json');
+    const listed = response.ok ? await response.json() : [];
+    const loaded = await Promise.all(listed.map((/** @type {string} */ l) => loadApp(l)));
+    loginLangs = listed.filter((/** @type {string} */ _, /** @type {number} */ i) => loaded[i]);
+  } catch {
+    loginLangs = [];
+  }
+}
+
+/** The language chosen on the Help page or the login screen, if any. */
 const savedLang = () => store.get('lang', /** @type {string | null} */ (null));
 
 /** Once the trip is open: the saved choice, the trip's setting, the phone's language, else the fallback. */

@@ -17,6 +17,10 @@ export interface Trip {
    * A translation key ("d1.title") or a key with values for its placeholders (["meet.lobbyAt", {"time": "09:45"}]).
    */
   title: string | [string] | [string, {[name: string]: string | number}];
+  /**
+   * A greeting on Today before the trip starts (Day 0), e.g. who to call, what to pack.
+   */
+  welcome?: TextRef | null;
   settings: Settings;
   weather?: Weather | null;
   places: {
@@ -147,9 +151,9 @@ export interface Event {
    */
   place?: string | null;
   /**
-   * A key of `tickets`.
+   * A key of `tickets`, or a list of them (one ticket per person, e.g. ["busMum", "busDad"]).
    */
-  ticket?: string | null;
+  ticket?: string | string[] | null;
 }
 /**
  * This interface was referenced by `Trip`'s JSON-Schema

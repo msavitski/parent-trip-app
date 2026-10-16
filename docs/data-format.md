@@ -45,21 +45,23 @@ the phone's language unless `settings.language` forces one, or the language is c
 
 To add a language (e.g. Belarusian): copy `web/locales/en/` to `web/locales/be/` and the data folder's
 `locales/en/` to `locales/be/`, translate both, set `meta.locale` to `be-BY` (and `meta.windUnit`: `kmh`, `ms` or
-`mph`), add `"be"` to `settings.languages`, and run `trip check`. Cyrillic languages switch to the Golos Text font.
+`mph`), add `"be"` to `settings.languages`, and run `trip check` and `trip precache` (it lists the language on the login
+screen). Cyrillic languages switch to the Golos Text font.
 
 ## Main fields
 
-| Field                     | Notes                                                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `settings.demoTodayIsDay` | Demo only: shifts the trip so this day is today. `null` for a real trip (`trip check` warns).                                                                |
-| `settings.speechLang`     | The destination's language for "Hear it", e.g. `tr-TR`                                                                                                       |
-| `weather`                 | `{ lat, lon }` of the destination; remove it to hide the weather                                                                                             |
-| `places`                  | Keyed by id; events, the taxi card and `help.hotel` refer to these ids                                                                                       |
-| `tickets`                 | Keyed by id; `image` is a path inside the data folder                                                                                                        |
-| `days[].hidden`           | `true`: only the admin password shows (and decrypts) the day; the family sees "Plan coming later", its weather, no tickets or places of its own              |
-| `days[].events[]`         | `time` (24 h, local), `icon` (plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase), `title`, optional `note`, `meet`, `place`, `ticket` |
-| `help.family`             | At least one contact; the first gets the big Call button                                                                                                     |
-| `lists[].id`              | Also the storage key of the ticks: don't rename it during a trip                                                                                             |
-| `money.rate`              | 1 home currency = this many local                                                                                                                            |
+| Field                     | Notes                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settings.demoTodayIsDay` | Demo only: this day counts as today (days keep their real dates and weather). `null` for a real trip (`trip check` warns).                                                                              |
+| `settings.speechLang`     | The destination's language for "Hear it", e.g. `tr-TR`                                                                                                                                                  |
+| `welcome`                 | Optional greeting on Today before the trip starts (Day 0)                                                                                                                                               |
+| `weather`                 | `{ lat, lon }` of the destination; remove it to hide the weather                                                                                                                                        |
+| `places`                  | Keyed by id; events, the taxi card and `help.hotel` refer to these ids                                                                                                                                  |
+| `tickets`                 | Keyed by id; `image` is a path inside the data folder                                                                                                                                                   |
+| `days[].hidden`           | `true`: only the admin password shows (and decrypts) the day; the family sees "Plan coming later", its weather, no tickets or places of its own                                                         |
+| `days[].events[]`         | `time` (24 h, local), `icon` (plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase), `title`, optional `note`, `meet`, `place`, `ticket` (an id, or a list: `["busMum", "busDad"]`) |
+| `help.family`             | At least one contact; the first gets the big Call button                                                                                                                                                |
+| `lists[].id`              | Also the storage key of the ticks: don't rename it during a trip                                                                                                                                        |
+| `money.rate`              | 1 home currency = this many local                                                                                                                                                                       |
 
 Times are local times at the destination; phones switch time zone when they land.

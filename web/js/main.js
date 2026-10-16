@@ -5,7 +5,7 @@
 import { listen } from './actions.js';
 import { pendingEnc } from './admin/publish.js';
 import { applyLanguage, showScreen, start } from './app.js';
-import { loadApp, pickLoginLang } from './i18n.js';
+import { loadApp, loadLoginLangs, pickLoginLang } from './i18n.js';
 import { state } from './state.js';
 import { loginScreen, messageScreen } from './ui/screens.js';
 import { deriveKey, fetchEnc, openTrip, remember, savedKey } from './vault.js';
@@ -45,6 +45,7 @@ async function boot() {
   }
 
   // 3. ask; a saved key that no longer fits means the password was changed
+  await loadLoginLangs();
   showScreen(loginScreen(saved ? 'login.changed' : null));
   document.getElementById('pw')?.focus();
 }

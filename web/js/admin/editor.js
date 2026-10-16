@@ -12,7 +12,7 @@
 import { Html, html, icon } from '../html.js';
 import { meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
-import { addDays, isoDate, parseDate, toMin } from '../trip.js';
+import { addDays, isoDate, parseDate, ticketsOf, toMin } from '../trip.js';
 import { hello } from '../ui/components.js';
 import { dropUnusedImages, isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
 import { EVENT_ICONS, realDate } from './validate.js';
@@ -72,6 +72,25 @@ const selectField = (name, labelKey, options, value) =>
     <select id="f-${name}" name="${name}"><option value="">${t('edit.none')}</option>${options.map(
       ([id, label]) => html`<option value="${id}"${id === value ? html` selected` : ''}>${label}</option>`,
     )}</select></div>`;
+
+/**
+ * Checkboxes of ids: none, one or several can be ticked.
+ * @param {string} name
+ * @param {string} labelKey
+ * @param {[string, string][]} options  [id, label]
+ * @param {string[]} values
+ * @param {string} hintKey  shown under the label
+ * @param {string} emptyKey  shown instead when there are no options
+ */
+const checksField = (name, labelKey, options, values, hintKey, emptyKey) =>
+  html`<fieldset class="field"><legend class="label">${t(labelKey)}</legend>${
+    options.length
+      ? html`<p class="muted small">${t(hintKey)}</p>${options.map(
+          ([id, label]) =>
+            html`<label class="field-check"><input type="checkbox" name="${name}" value="${id}"${values.includes(id) ? html` checked` : ''}><span>${label}</span></label>`,
+        )}`
+      : html`<p class="muted small">${t(emptyKey)}</p>`
+  }</fieldset>`;
 
 /**
  * A row in a list of things to edit.
@@ -191,7 +210,7 @@ function eventView(dayIndex, index) {
     ${textField('note', 'edit.event.note', ev.note, { multiline: true })}
     ${textField('meet', 'edit.event.meet', ev.meet)}
     ${selectField('place', 'edit.event.place', places, ev.place)}
-    ${selectField('ticket', 'edit.event.ticket', tickets, ev.ticket)}`,
+    ${checksField('ticket', 'edit.event.tickets', tickets, ticketsOf(ev), 'edit.event.ticketsHint', 'edit.event.noTickets')}`,
   )}
   ${index < 0 ? '' : html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="event:${dayIndex}:${index}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteEvent')}</span></button>`}`;
 }
@@ -375,10 +394,12 @@ export function applyForm(formEl) {
     setOptional(ev, 'note', setText(payload, ev.note, typed(data, 'note')));
     setOptional(ev, 'meet', setText(payload, ev.meet, typed(data, 'meet')));
     const place = value(data, 'place');
-    const ticket = value(data, 'ticket');
+    // one ticket stays a plain id (as before), several become a list
+    const tickets = data.getAll('ticket').map(String);
     if (place) ev.place = place;
     else delete ev.place;
-    if (ticket) ev.ticket = ticket;
+    if (tickets.length > 1) ev.ticket = tickets;
+    else if (tickets.length) ev.ticket = tickets[0];
     else delete ev.ticket;
     if (!day.events.includes(ev)) day.events.push(ev);
     day.events.sort((a, b) => toMin(a.time) - toMin(b.time));
@@ -442,7 +463,13 @@ export function deleteFromDraft(arg) {
   if (kind === 'ticket') {
     delete trip.tickets[a];
     // its events stay in the plan, without the Ticket button
-    for (const day of days) for (const ev of day.events) if (ev.ticket === a) delete ev.ticket;
+    for (const day of days)
+      for (const ev of day.events) {
+        const left = ticketsOf(ev).filter((id) => id !== a);
+        if (left.length > 1) ev.ticket = left;
+        else if (left.length) ev.ticket = left[0];
+        else delete ev.ticket;
+      }
     dropUnusedImages(payload);
   }
 }

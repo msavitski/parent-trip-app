@@ -390,11 +390,18 @@
               "type": "string"
             },
             {
+              "items": {
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "A key of `tickets`."
+          "description": "A key of `tickets`, or a list of them (one ticket per person, e.g. [\"busMum\", \"busDad\"])."
         }
       },
       "required": [
@@ -998,6 +1005,18 @@
       ],
       "description": "A translation key (\"d1.title\") or a key with values for its placeholders ([\"meet.lobbyAt\", {\"time\": \"09:45\"}]).",
       "tsType": "string | [string] | [string, { [name: string]: string | number }]"
+    },
+    "welcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A greeting on Today before the trip starts (Day 0), e.g. who to call, what to pack."
     },
     "settings": {
       "$ref": "#/$defs/Settings"

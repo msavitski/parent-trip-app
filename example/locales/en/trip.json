@@ -1,5 +1,6 @@
 {
-  "trip.title": "Istanbul",
+  "trip.title": "Many-many countries",
+  "trip.welcome": "I'm soo happy to see you!",
 
   "place.hotel": "Lale Garden Hotel",
   "place.airport": "Istanbul Airport",
@@ -69,8 +70,7 @@
   "meet.lobbyAt": "Hotel lobby at {time}",
   "meet.lobbyBags": "Hotel lobby with suitcases",
 
-  "help.alex.note": "Our phone. Also on Viber and Telegram.",
-  "help.sam.note": "At home. Call if {name} does not answer.",
+  "help.mike.note": "Our phone. Also on Viber and Telegram.",
   "help.lost.1": "Stay where you are. Don’t walk off to look for us.",
   "help.lost.2": "Call {first}. If there is no answer, call {second}.",
   "help.lost.3": "No battery or no signal? Ask a shop or café to call for you. Show them the phrase “Please call this number”.",

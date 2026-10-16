@@ -15,12 +15,13 @@
 {
   $schema: "../schema/trip.schema.json",   // editor autocompletion (JetBrains); ignored by the app
   title: "trip.title",
+  welcome: "trip.welcome",  // optional: a greeting on Today before the trip starts (Day 0)
 
   settings: {
     languages: ["en", "ru"],  // need locales/<code>/app.json and private/locales/<code>/trip.json. The first is the fallback.
     language: null,           // force a language, e.g. "ru". null = follow the phone's language.
-    speechLang: "tr-TR",      // language spoken at the destination, used by the "Hear it" buttons
-    demoTodayIsDay: 2,        // DEMO ONLY: pretend today is day 2. Set to null for the real trip.
+    speechLang: "es-ES",      // language spoken at the destination, used by the "Hear it" buttons
+    demoTodayIsDay: null,        // DEMO ONLY: pretend today is day 2. Set to null for the real trip.
   },
 
   // Where the weather forecast is for. Delete this block to hide the weather.
@@ -132,8 +133,7 @@
   help: {
     emergency: "112",
     family: [
-      { name: "Alex", note: "help.alex.note", phone: "+44 7700 900123" },
-      { name: "Sam", note: ["help.sam.note", { name: "Alex" }], phone: "+44 7700 900456" },
+      { name: "Mike", note: "help.mike.note", phone: "+8888 88 8888" }
     ],
     lost: ["help.lost.1", ["help.lost.2", { first: "Alex", second: "Sam" }], "help.lost.3", "help.lost.4"],
     hotel: "hotel",

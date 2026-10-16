@@ -104,7 +104,7 @@ export type Vars = Record<string, string | number>;
 export interface TripDay extends Day {
   /** 1-based day number. */
   n: number;
-  /** Local midnight of the day (moved to "now" in demo mode). */
+  /** Local midnight of the day's real date (also in demo mode). */
   when: Date;
 }
 

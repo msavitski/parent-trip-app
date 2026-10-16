@@ -2,9 +2,9 @@
  * Whole screens: the five tabs, the login form and the message/error screens.
  */
 import { html, icon } from '../html.js';
-import { cap, fmt, meta, t, tr } from '../i18n.js';
+import { cap, fmt, loginLangs, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
-import { canSpeak, currentTrip, daysBetween, todayIndex } from '../trip.js';
+import { canSpeak, currentTrip, daysBetween, todayIndex, tripToday } from '../trip.js';
 import { mapUrl, store, telUrl } from '../util.js';
 import {
   dayCard,
@@ -38,20 +38,14 @@ function today() {
   const days = state.days;
   const first = days[0];
   const last = days[days.length - 1];
-  const toStart = daysBetween(new Date(), first.when);
+  const now = tripToday();
+  const toStart = daysBetween(now, first.when);
 
-  if (toStart > 0) {
-    const big = toStart === 1 ? t('today.startsTomorrow') : t('today.startsIn', { count: toStart });
-    return html`${hello(big, cap(fmt.long.format(first.when)))}${tiles()}
-      <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when)}</section>
-      <button class="btn" type="button" data-action="tab" data-arg="lists" style="align-self:flex-start">${icon('check')}${t('today.openPacking')}</button>`;
-  }
-  if (daysBetween(last.when, new Date()) > 0)
-    return html`${hello(t('today.welcomeHome'), t('today.welcomeSub'))}${tiles()}`;
+  if (toStart > 0) return dayZero(toStart);
+  if (daysBetween(last.when, now) > 0) return html`${hello(t('today.welcomeHome'), t('today.welcomeSub'))}${tiles()}`;
 
   const index = todayIndex();
-  if (index < 0)
-    return html`${hello(t('today.freeDay'), cap(fmt.long.format(new Date())))}${weatherCard(new Date())}${tiles()}`;
+  if (index < 0) return html`${hello(t('today.freeDay'), cap(fmt.long.format(now)))}${weatherCard(now)}${tiles()}`;
 
   const day = days[index];
   const big = t('today.dayXofY', { x: day.n, y: days.length });
@@ -62,6 +56,27 @@ function today() {
     <section class="section"><h2>${t('today.plan')}</h2>${timeline(day, true)}</section>`;
 }
 
+/**
+ * Day 0: before the trip a greeting, the countdown, the trip's welcome note, the first day with its
+ * weather and the rest of the days.
+ * @param {number} toStart  days until the first day (1 = tomorrow)
+ */
+function dayZero(toStart) {
+  const days = state.days;
+  const first = days[0];
+  const last = days[days.length - 1];
+  const welcome = currentTrip().welcome;
+  const count = toStart === 1 ? t('today.startsTomorrow') : t('today.startsIn', { count: toStart });
+  const range = `${fmt.short.format(first.when)} – ${fmt.short.format(last.when)}`;
+  return html`${hello(t('today.greeting'), range)}
+    <section class="sign"><div class="sign-head"><span class="sign-tag">${t('today.dayZero')}</span><span>${cap(fmt.long.format(first.when))}</span></div>
+      <h2 class="sign-title">${count}</h2></section>
+    ${welcome ? noteBox(tr(welcome)) : ''}${tiles()}
+    <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when)}</section>
+    <button class="btn" type="button" data-action="tab" data-arg="lists" style="align-self:flex-start">${icon('check')}${t('today.openPacking')}</button>
+    ${days.length > 1 ? html`<section class="section"><h2>${t('today.nextDays')}</h2><ol class="days">${days.slice(1).map((day, i) => html`<li>${dayCard(day, i + 1)}</li>`)}</ol></section>` : ''}`;
+}
+
 function days() {
   const all = state.days;
   if (state.dayOpen != null) {
@@ -69,7 +84,7 @@ function days() {
     const secret = isSecret(day);
     return html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('days.back')}</span></button>
       ${hello(secret ? t('day.hidden') : tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }))}${hiddenNote(day)}
-      ${weatherCard(day.when)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, new Date()) === 0)}`}`;
+      ${weatherCard(day.when)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, tripToday()) === 0)}`}`;
   }
   const range = `${fmt.short.format(all[0].when)} – ${fmt.short.format(all[all.length - 1].when)}`;
   return html`${hello(t('days.title'), range)}<ol class="days">${all.map((day, i) => html`<li>${dayCard(day, i)}</li>`)}</ol>`;
@@ -130,10 +145,7 @@ function help() {
   ${con ? html`<section class="section"><h2>${t('help.consulate')}</h2>${person(tr(con.name), tr(con.note), con.phone)}</section>` : ''}
   ${
     state.languages.length > 1
-      ? html`<section class="section"><h2>${t('help.language')}</h2><div class="chips">${state.languages.map(
-          (l) =>
-            html`<button class="chip" type="button" lang="${l}" data-action="lang" data-arg="${l}" aria-pressed="${l === state.lang}">${meta(l, 'meta.name') || l}</button>`,
-        )}</div></section>`
+      ? html`<section class="section"><h2>${t('help.language')}</h2>${langChips(state.languages)}</section>`
       : ''
   }
   <section class="section"><h2>${t('help.phone')}</h2><div class="card info">
@@ -144,8 +156,19 @@ function help() {
 /** The five tabs. */
 export const SCREENS = { today, days, lists, phrases, help };
 
+/**
+ * Language buttons. @param {string[]} langs
+ * @param {string} [cls]  extra class of the row
+ */
+const langChips = (langs, cls = '') =>
+  html`<div class="chips${cls}">${langs.map(
+    (l) =>
+      html`<button class="chip" type="button" lang="${l}" data-action="lang" data-arg="${l}" aria-pressed="${l === state.lang}">${meta(l, 'meta.name') || l}</button>`,
+  )}</div>`;
+
 /** Password form. @param {string | null} errorKey  e.g. 'login.changed' */
 export const loginScreen = (errorKey) => html`<form class="login" id="login" novalidate>
+    ${loginLangs.length > 1 ? html`<div class="login-lang" role="group" aria-label="${t('help.language')}">${icon('globe')}${langChips(loginLangs)}</div>` : ''}
     <span class="login-badge">${icon('plane')}</span>
     <h1 class="big">${t('login.title')}</h1>
     <p>${t('login.text')}</p>
@@ -154,7 +177,7 @@ export const loginScreen = (errorKey) => html`<form class="login" id="login" nov
       <input id="pw" name="password" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false">
       <button class="pw-eye" type="button" data-action="toggle-password" aria-label="${t('login.show')}" aria-pressed="false">${icon('eye')}</button>
     </div>
-    <p class="login-err" id="login-err" role="alert"${errorKey ? '' : html` hidden`}>${errorKey ? t(errorKey) : ''}</p>
+    <p class="login-err" id="login-err" role="alert"${errorKey ? html` data-key="${errorKey}"` : html` hidden`}>${errorKey ? t(errorKey) : ''}</p>
     <button class="btn btn--solid btn--big" type="submit" id="login-go">${icon('unlock')}<span>${t('login.open')}</span></button>
     <p class="muted small">${t('login.once')}</p>
   </form>`;

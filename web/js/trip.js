@@ -1,7 +1,7 @@
 /**
  * The opened trip and calendar helpers.
  *
- * @import { Trip } from '../../types/trip'
+ * @import { Event, Trip } from '../../types/trip'
  * @import { Payload, TripDay } from '../../types/app'
  */
 import { state } from './state.js';
@@ -45,8 +45,21 @@ export function currentTrip() {
   return state.trip;
 }
 
+/**
+ * Today on the trip's calendar: today, or in demo mode the demo day. Trip days keep their real dates
+ * (so they show the right date and the weather for that date); only "which day is today" moves.
+ */
+export const tripToday = () => addDays(new Date(), -state.demoShift);
+
 /** Index of today's trip day, or -1. */
-export const todayIndex = () => state.days.findIndex((d) => daysBetween(d.when, new Date()) === 0);
+export const todayIndex = () => state.days.findIndex((d) => daysBetween(d.when, tripToday()) === 0);
+
+/**
+ * An event's ticket ids: `ticket` is one id, or a list (one ticket per person).
+ * @param {Pick<Event, 'ticket'>} e
+ * @returns {string[]}
+ */
+export const ticketsOf = (e) => (e.ticket == null ? [] : Array.isArray(e.ticket) ? e.ticket : [e.ticket]);
 
 /** Whether "Hear it" buttons can work for this trip's destination language. */
 export const canSpeak = () => canSpeakIn(state.settings.speechLang);
@@ -91,7 +104,7 @@ export function forFamily(payload) {
   if (!days?.some((d) => d.hidden)) return payload;
   /** @param {boolean} hidden @param {'place' | 'ticket'} field */
   const usedBy = (hidden, field) =>
-    new Set(days.filter((d) => !!d.hidden === hidden).flatMap((d) => (d.events ?? []).map((e) => e[field])));
+    new Set(days.filter((d) => !!d.hidden === hidden).flatMap((d) => (d.events ?? []).flatMap((e) => e[field])));
   /**
    * @template T
    * @param {Record<string, T>} all
@@ -150,16 +163,16 @@ export function initTrip(payload) {
     if (ticket.image && payload.images?.[ticket.image]) ticket.image = payload.images[ticket.image];
   }
 
-  // demo mode: move the whole trip so that the chosen day is today (a day that doesn't exist means no demo)
+  // demo mode: the chosen day counts as today (a day that doesn't exist means no demo)
   const demoDay = state.settings.demoTodayIsDay;
   const anchor = demoDay ? trip.days[demoDay - 1] : undefined;
-  const shift = anchor ? daysBetween(parseDate(anchor.date), new Date()) : 0;
+  state.demoShift = anchor ? daysBetween(parseDate(anchor.date), new Date()) : 0;
   state.days = trip.days.map(
     (day, i) =>
       /** @type {TripDay} */ ({
         ...day,
         n: i + 1,
-        when: addDays(parseDate(day.date), shift),
+        when: parseDate(day.date),
         events: [...(day.events || [])].sort((a, b) => toMin(a.time) - toMin(b.time)),
       }),
   );
