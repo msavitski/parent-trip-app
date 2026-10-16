@@ -133,7 +133,7 @@
   help: {
     emergency: "112",
     family: [
-      { name: "Mike", note: "help.Mike.note", phone: "+8888 88 8888" }
+      { name: "Mike", note: "help.mike.note", phone: "+8888 88 8888" }
     ],
     lost: ["help.lost.1", ["help.lost.2", { first: "Alex", second: "Sam" }], "help.lost.3", "help.lost.4"],
     hotel: "hotel",
