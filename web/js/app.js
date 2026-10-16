@@ -1,8 +1,10 @@
 /**
  * The running app: rendering, tabs, sheets, the phone's Back button, and keeping Today fresh.
  *
- * @import { Payload, SheetType, Tab } from '../../types/app'
+ * @import { EditView, Opened, SheetType, Tab } from '../../types/app'
  */
+import { loadDraft } from './admin/draft.js';
+import { editScreen } from './admin/editor.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
@@ -26,6 +28,8 @@ const TABS = [
   ['phrases', 'chat'],
   ['help', 'buoy'],
 ];
+/** @type {[Tab, string]} only for the admin password */
+const EDIT_TAB = ['edit', 'edit'];
 
 /** Minute of the last render, to re-render Today when the clock moves on. */
 let lastStamp = '';
@@ -37,7 +41,7 @@ const stamp = () => {
 /** Draw the current tab. If drawing fails, show a message instead of a blank screen. */
 export function render() {
   try {
-    mount(view, SCREENS[state.tab]());
+    mount(view, state.tab === 'edit' ? editScreen() : SCREENS[state.tab]());
   } catch (error) {
     console.error(error);
     mount(view, messageScreen('error.generic', true));
@@ -61,19 +65,21 @@ export function showScreen(content) {
 export function applyLanguage(lang) {
   setLang(lang);
   document.title = state.trip ? tr(state.trip.title) : t('login.title');
+  const tabs = state.role === 'admin' ? [...TABS, EDIT_TAB] : TABS;
+  tabsEl.style.setProperty('--tab-count', String(tabs.length));
   mount(
     tabsEl,
-    html`${TABS.map(
+    html`${tabs.map(
       ([tab, iconName]) =>
         html`<button type="button" class="tab${tab === 'help' ? ' tab--help' : ''}" data-action="tab" data-arg="${tab}">${icon(iconName)}<span>${t('tab.' + tab)}</span></button>`,
     )}`,
   );
 }
 
-/* ---------- the phone's Back button closes sheets and days ---------- */
+/* ---------- the phone's Back button closes sheets, days and editor screens ---------- */
 
 let depth = 0; // history entries we pushed
-let silent = 0; // history.back() calls whose popstate we ignore
+let silent = 0; // history moves whose popstate we ignore
 
 function pushNav() {
   try {
@@ -91,6 +97,10 @@ function stepBack() {
   if (state.sheets.length) {
     state.sheets.pop();
     showSheet();
+  } else if (state.tab === 'edit' && state.edit.length) {
+    state.edit.pop();
+    render();
+    window.scrollTo(0, 0);
   } else if (state.dayOpen != null) {
     state.dayOpen = null;
     render();
@@ -99,24 +109,42 @@ function stepBack() {
 }
 
 addEventListener('popstate', () => {
-  depth = Math.max(0, depth - 1);
   if (silent) {
     silent--;
     return;
   }
+  depth = Math.max(0, depth - 1);
   stepBack();
 });
 
 /** @param {Tab} tab */
 export function setTab(tab) {
-  if (state.dayOpen != null && depth > 0) {
+  // leaving an open day or editor screen: drop their history entries quietly
+  const inside = (state.dayOpen != null ? 1 : 0) + state.edit.length;
+  const steps = Math.min(inside, depth);
+  if (steps > 0) {
+    depth -= steps;
     silent++;
-    history.back();
+    history.go(-steps);
   }
   state.tab = tab;
   state.dayOpen = null;
+  state.edit = [];
   render();
   window.scrollTo(0, 0);
+}
+
+/** Open a screen inside the Edit tab. @param {EditView} editView */
+export function openEdit(editView) {
+  state.edit.push(editView);
+  pushNav();
+  render();
+  window.scrollTo(0, 0);
+}
+
+/** Admin: make every screen show the edited trip (the next render draws it). */
+export function useDraft() {
+  if (state.draft) initTrip(structuredClone(state.draft));
 }
 
 /** @param {number} index */
@@ -218,11 +246,17 @@ function watch() {
 }
 
 /**
- * Start the app with a decrypted trip.
- * @param {Payload} payload
+ * Start the app with an opened trip. The admin sees (and edits) a draft copy.
+ * @param {Opened} opened
  */
-export async function start(payload) {
-  initTrip(payload);
+export async function start(opened) {
+  state.opened = opened;
+  state.role = opened.role;
+  if (opened.role === 'admin') {
+    state.original = structuredClone(opened.payload);
+    state.draft = loadDraft() ?? structuredClone(opened.payload);
+  }
+  initTrip(structuredClone(state.draft ?? opened.payload));
   await Promise.all(state.languages.map(loadApp));
   applyLanguage(pickLang());
   tabsEl.hidden = false;
