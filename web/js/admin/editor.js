@@ -396,7 +396,13 @@ export function applyForm(formEl) {
  */
 export function deleteFromDraft(arg) {
   const [kind, a, b] = arg.split(':').map((s, i) => (i ? Number(s) : s));
-  const days = draft().trip.days;
-  if (kind === 'day') days.splice(/** @type {number} */ (a), 1);
+  const trip = draft().trip;
+  const days = trip.days;
+  if (kind === 'day') {
+    days.splice(/** @type {number} */ (a), 1);
+    // demo mode points at a day number: keep it pointing at a day that still exists
+    const demo = trip.settings.demoTodayIsDay;
+    if (demo && demo > days.length) trip.settings.demoTodayIsDay = days.length || null;
+  }
   if (kind === 'event') days[/** @type {number} */ (a)]?.events.splice(/** @type {number} */ (b), 1);
 }

@@ -225,6 +225,8 @@
   "edit.err.place": "нет места «{value}».",
   "edit.err.ticket": "нет билета «{value}».",
   "edit.err.listId": "id списка «{value}» встречается дважды.",
+  "edit.err.demoDay": "равно {value}, а дней в поездке: {count}. Укажите существующий номер дня или null для настоящей поездки.",
+  "edit.err.language": "«{value}» нет в settings.languages.",
   "edit.err.image": "нет картинки «{value}».",
   "edit.err.text": "нет текста «{key}» на языке «{lang}».",
   "edit.err.vars": "для «{key}» нужны значения: {names}.",
