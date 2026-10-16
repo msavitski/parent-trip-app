@@ -16,6 +16,7 @@ import {
   render,
   retargetSheet,
   setTab,
+  showScreen,
   start,
   topSheet,
   useDraft,
@@ -24,7 +25,7 @@ import { icon, mount } from './html.js';
 import { t } from './i18n.js';
 import { state } from './state.js';
 import { currentTrip } from './trip.js';
-import { clearTicked, saveTicked, ticked } from './ui/screens.js';
+import { clearTicked, loginScreen, saveTicked, ticked } from './ui/screens.js';
 import { moneyCalc, moneyUpdate } from './ui/sheets.js';
 import { speak, store } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
@@ -75,7 +76,8 @@ const ACTIONS = {
   lang(_, arg) {
     store.set('lang', arg);
     applyLanguage(arg);
-    render();
+    if (state.trip) render();
+    else relabelLogin();
   },
 
   'reset-list': (el, arg) =>
@@ -247,6 +249,20 @@ function onCheck(box) {
   byId('count-' + listId).textContent = t('lists.count', { x: done.length, y: list?.items.length ?? 0 });
 }
 
+/** The login form in the new language, keeping what was typed and the error shown. */
+function relabelLogin() {
+  const input = /** @type {HTMLInputElement | null} */ (byId('pw'));
+  if (!input) return;
+  const typed = input.value;
+  const shown = input.type;
+  const error = byId('login-err');
+  const errorKey = error.hidden ? null : (error.dataset.key ?? null);
+  showScreen(loginScreen(errorKey));
+  const fresh = /** @type {HTMLInputElement} */ (byId('pw'));
+  fresh.value = typed;
+  if (shown === 'text') ACTIONS['toggle-password'](/** @type {HTMLElement} */ (document.querySelector('.pw-eye')), '');
+}
+
 /** Try the typed password. @param {SubmitEvent} event */
 async function onLogin(event) {
   event.preventDefault();
@@ -268,6 +284,7 @@ async function onLogin(event) {
     go.disabled = false;
     goLabel.textContent = t('login.open');
     error.textContent = t('login.wrong');
+    error.dataset.key = 'login.wrong';
     error.hidden = false;
     input.select();
     return;

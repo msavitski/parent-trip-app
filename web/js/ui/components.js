@@ -7,7 +7,7 @@
 import { html, icon } from '../html.js';
 import { fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
-import { currentTrip, daysBetween, nowMin, toMin } from '../trip.js';
+import { currentTrip, daysBetween, nowMin, ticketsOf, toMin, tripToday } from '../trip.js';
 import { dirUrl, mapUrl, telUrl } from '../util.js';
 import { hasWeather, outfit, WEATHER_ICON, weatherFetchedAt, weatherFor, weatherKind } from '../weather.js';
 
@@ -41,7 +41,7 @@ function inText(minutes) {
   return t('time.in', { t: parts.join(' ') });
 }
 
-/** Map, Taxi and Ticket buttons of an event. @param {Event} e */
+/** Map, Taxi and Ticket buttons of an event (one per ticket, named after it when there are several). @param {Event} e */
 function eventActions(e) {
   const trip = currentTrip();
   const place = e.place ? trip.places[e.place] : undefined;
@@ -52,9 +52,11 @@ function eventActions(e) {
       html`<button class="btn" type="button" data-action="taxi" data-arg="${e.place}">${icon('car')}${t('action.taxi')}</button>`,
     );
   }
-  if (e.ticket && trip.tickets[e.ticket]) {
+  const tickets = ticketsOf(e).filter((id) => trip.tickets[id]);
+  for (const id of tickets) {
+    const label = tickets.length > 1 ? tr(trip.tickets[id].title) : t('action.ticket');
     buttons.push(
-      html`<button class="btn" type="button" data-action="ticket" data-arg="${e.ticket}">${icon('ticket')}${t('action.ticket')}</button>`,
+      html`<button class="btn" type="button" data-action="ticket" data-arg="${id}">${icon('ticket')}${label}</button>`,
     );
   }
   return buttons.length ? html`<div class="actions">${buttons}</div>` : '';
@@ -128,7 +130,7 @@ export function tiles() {
  * @param {number} index
  */
 export function dayCard(day, index) {
-  const rel = daysBetween(new Date(), day.when);
+  const rel = daysBetween(tripToday(), day.when);
   const tag =
     rel === 0
       ? html`<span class="tag tag--today">${t('badge.today')}</span>`
@@ -194,6 +196,7 @@ export function weatherCard(date) {
   /** @type {WeatherDay | null} */
   const w = weatherFor(date);
   if (!w) {
+    // the real date, also in demo mode: the forecast is for the day's real date
     const key = daysBetween(new Date(), date) > 14 ? 'wx.notYet' : 'wx.none';
     return html`<section class="card wx wx--empty">${icon('cloud')}<p>${t(key)}</p></section>`;
   }

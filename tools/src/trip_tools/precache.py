@@ -1,4 +1,5 @@
-"""`trip precache`: write the app's file list and version into web/sw.js.
+"""`trip precache`: write the app's file list and version into web/sw.js, and the app's languages into
+web/locales/languages.json (the login screen offers them before the trip is open).
 
 The service worker caches exactly these files as one snapshot named after VERSION, a hash of their
 contents. Any change to a file in web/ therefore changes sw.js, and phones download the new
@@ -10,6 +11,7 @@ files the first time they're used, so the family's phones never download them.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -52,8 +54,22 @@ def block(web: Path) -> str:
     return "\n".join(lines)
 
 
+LANGUAGES = "locales/languages.json"
+
+
+def languages_json(web: Path) -> str:
+    """The languages that have interface words (web/locales/<lang>/app.json), English first."""
+    langs = sorted((p.parent.name for p in (web / "locales").glob("*/app.json")), key=lambda lang: (lang != "en", lang))
+    return json.dumps(langs) + "\n"
+
+
 def update(service_worker: Path, web: Path, write: bool = True) -> bool:
-    """Returns whether sw.js was (or, with write=False, would be) changed."""
+    """Returns whether sw.js or languages.json was (or, with write=False, would be) changed."""
+    langs_file = web / LANGUAGES
+    langs = languages_json(web)
+    langs_changed = not langs_file.is_file() or langs_file.read_text(encoding="utf-8").replace("\r\n", "\n") != langs
+    if langs_changed and write:
+        langs_file.write_text(langs, encoding="utf-8", newline="\n")  # before the hash below, which includes it
     source = service_worker.read_text(encoding="utf-8")
     if not BLOCK.search(source):
         raise PrecacheError(f"{service_worker} has no precache block ({START} … {END}).")
@@ -61,4 +77,4 @@ def update(service_worker: Path, web: Path, write: bool = True) -> bool:
     changed = new_source != source.replace("\r\n", "\n")
     if changed and write:
         service_worker.write_text(new_source, encoding="utf-8", newline="\n")
-    return changed
+    return changed or langs_changed

@@ -106,10 +106,13 @@ def _check_references(trip: Trip, data: DataDir, report: Report) -> None:
         for j, event in enumerate(day.events):
             if event.place and event.place not in places:
                 report.error(f"days[{i}].events[{j}].place", f"unknown place '{event.place}' (known: {known(places)})")
-            if event.ticket and event.ticket not in tickets:
-                report.error(
-                    f"days[{i}].events[{j}].ticket", f"unknown ticket '{event.ticket}' (known: {known(tickets)})"
-                )
+            for ticket in event.tickets:
+                if ticket not in tickets:
+                    report.error(
+                        f"days[{i}].events[{j}].ticket", f"unknown ticket '{ticket}' (known: {known(tickets)})"
+                    )
+            if len(set(event.tickets)) < len(event.tickets):
+                report.warn(f"days[{i}].events[{j}].ticket", "lists the same ticket twice")
         times = [e.time for e in day.events]
         if times != sorted(times):
             report.warn(

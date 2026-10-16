@@ -24,27 +24,27 @@ compiling anything.
 
 ## Frontend modules (`web/js/`)
 
-| Module              | Responsibility                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form)  |
-| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline              |
-| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money input, login form            |
-| `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing          |
-| `html.js`           | `html` tagged template (escapes every value) and the icon set                                   |
-| `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats               |
-| `vault.js`          | `trip.enc`: fetch, derive key, decrypt (admin: merge the hidden days), seal, remember the key   |
-| `trip.js`           | Turn the payload into the current trip (demo shift, sorted events, family's view); date helpers |
-| `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                        |
-| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                            |
-| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header         |
-| `ui/screens.js`     | The five tabs, login and message screens                                                        |
-| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                               |
-| `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft               |
-| `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device         |
-| `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed      |
-| `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language       |
-| `admin/publish.js`  | Publish: conflict check, re-encrypt with the same keys (`vault.sealTrip`), commit both repos    |
-| `admin/github.js`   | The few GitHub API calls: read a file, one commit with several files                            |
+| Module              | Responsibility                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form) |
+| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline             |
+| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money input, login form           |
+| `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing         |
+| `html.js`           | `html` tagged template (escapes every value) and the icon set                                  |
+| `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats              |
+| `vault.js`          | `trip.enc`: fetch, derive key, decrypt (admin: merge the hidden days), seal, remember the key  |
+| `trip.js`           | Turn the payload into the current trip (demo day, sorted events, family's view); date helpers  |
+| `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                       |
+| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                           |
+| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header        |
+| `ui/screens.js`     | The five tabs, login and message screens                                                       |
+| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                              |
+| `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft              |
+| `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device        |
+| `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed     |
+| `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language      |
+| `admin/publish.js`  | Publish: conflict check, re-encrypt with the same keys (`vault.sealTrip`), commit both repos   |
+| `admin/github.js`   | The few GitHub API calls: read a file, one commit with several files                           |
 
 Admin mode never changes how the family app works: the editor shows a draft (`state.draft`) on every tab until it is
 published, and a family password never gets the Edit tab. The forms turn typed text into translation keys: a key

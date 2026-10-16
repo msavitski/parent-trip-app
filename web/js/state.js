@@ -35,6 +35,8 @@ export const state = {
   }),
   /** Trip days with their real calendar date (`when`) and events sorted by time. */
   days: /** @type {TripDay[]} */ ([]),
+  /** Demo mode: how many days today is after the demo day (0 without demo). See trip.tripToday. */
+  demoShift: 0,
 
   /** Languages of this trip; the first one is the fallback for missing words. */
   languages: ['en'],

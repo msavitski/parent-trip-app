@@ -15,6 +15,7 @@
 {
   $schema: "../schema/trip.schema.json",   // editor autocompletion (JetBrains); ignored by the app
   title: "trip.title",
+  welcome: "trip.welcome",  // optional: a greeting on Today before the trip starts (Day 0)
 
   settings: {
     languages: ["en", "ru"],  // need locales/<code>/app.json and private/locales/<code>/trip.json. The first is the fallback.

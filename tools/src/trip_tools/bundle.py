@@ -111,7 +111,13 @@ def for_family(body: dict[str, Any]) -> dict[str, Any]:
         return body
 
     def used_by(hidden: bool, field: str) -> set[Any]:
-        return {e.get(field) for d in days if bool(d.get("hidden")) == hidden for e in d.get("events") or []}
+        found: set[Any] = set()
+        for d in days:
+            if bool(d.get("hidden")) == hidden:
+                for e in d.get("events") or []:
+                    value = e.get(field)  # a ticket can also be a list of ticket ids
+                    found.update(value if isinstance(value, list) else [value])
+        return found
 
     def without_secret(items: dict[str, Any] | None, field: str, always: Any = None) -> dict[str, Any]:
         shown, secret = used_by(False, field), used_by(True, field)

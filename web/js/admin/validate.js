@@ -7,7 +7,7 @@
  */
 import { setLang, t } from '../i18n.js';
 import { state } from '../state.js';
-import { forFamily, initTrip } from '../trip.js';
+import { forFamily, initTrip, ticketsOf } from '../trip.js';
 import { SCREENS } from '../ui/screens.js';
 import { renderSheet } from '../ui/sheets.js';
 import { languagesOf, refKey, refVars, textRefs } from './draft.js';
@@ -61,7 +61,7 @@ export function validate(payload) {
       if (!EVENT_ICONS.includes(ev.icon)) add(`${where}.icon`, 'edit.err.icon', { value: ev.icon });
       if (!ev.title) add(`${where}.title`, 'edit.err.missing');
       if (ev.place && !places[ev.place]) add(`${where}.place`, 'edit.err.place', { value: ev.place });
-      if (ev.ticket && !tickets[ev.ticket]) add(`${where}.ticket`, 'edit.err.ticket', { value: ev.ticket });
+      for (const id of ticketsOf(ev)) if (!tickets[id]) add(`${where}.ticket`, 'edit.err.ticket', { value: id });
     });
   });
   if (!places[trip.help?.hotel]) add('help.hotel', 'edit.err.place', { value: trip.help?.hotel ?? '' });
@@ -117,6 +117,7 @@ function renderTest(payload) {
     trip: state.trip,
     settings: state.settings,
     days: state.days,
+    demoShift: state.demoShift,
     languages: state.languages,
     fallback: state.fallback,
     tripStrings: state.tripStrings,

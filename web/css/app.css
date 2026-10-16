@@ -331,6 +331,17 @@ a {
   margin-inline: auto;
   padding-top: 4vh;
 }
+.login-lang {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: var(--muted);
+}
+.login-lang .chip {
+  min-height: 2.5rem;
+  padding: 4px 12px;
+}
 .login-badge {
   display: grid;
   place-items: center;
@@ -1231,7 +1242,7 @@ a {
   padding: 0;
   border: 0;
 }
-.field input:not([type='radio']),
+.field input:not([type='radio'], [type='checkbox']),
 .field textarea,
 .field select {
   width: 100%;
