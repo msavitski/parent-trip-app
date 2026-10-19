@@ -278,6 +278,18 @@
           "description": "Only the admin password shows this day; the family sees \"Plan coming later\" (and its weather).",
           "type": "boolean"
         },
+        "weather": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Weather"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where this day's forecast is for (a trip across cities); the trip's `weather` is the default."
+        },
         "events": {
           "items": {
             "$ref": "#/$defs/Event"
@@ -1030,7 +1042,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "Where the forecast is for: the default for days without their own, and off the trip days."
     },
     "places": {
       "additionalProperties": {

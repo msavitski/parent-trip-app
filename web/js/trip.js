@@ -1,7 +1,7 @@
 /**
  * The opened trip and calendar helpers.
  *
- * @import { Event, Trip } from '../../types/trip'
+ * @import { Day, Event, Trip } from '../../types/trip'
  * @import { Payload, TripDay } from '../../types/app'
  */
 import { state } from './state.js';
@@ -86,8 +86,21 @@ export const hasHiddenPlans = (trip) =>
   (trip.days ?? []).some((d) => d.hidden && (d.title || d.note || d.events?.length));
 
 /**
- * What the family sees. A hidden day keeps its date (so Today counts the days right and shows its weather)
- * but not its plan: Today and Days say "Plan coming later". Tickets and places that only hidden days use
+ * A hidden day as the family sees it: its date and weather place, no plan.
+ * @param {Day} day
+ * @returns {Day}
+ */
+const hiddenStub = (day) => ({
+  date: day.date,
+  title: '',
+  events: [],
+  hidden: true,
+  ...(day.weather ? { weather: day.weather } : {}),
+});
+
+/**
+ * What the family sees. A hidden day keeps its date and weather place (so Today counts the days right and
+ * shows the day's weather) but not its plan: Today and Days say "Plan coming later". Tickets and places that only hidden days use
  * are left out too, so the Tickets list and the taxi card don't give the plan away, and so are the
  * translation keys and ticket images only the left-out parts use. The admin password sees everything,
  * with hidden days marked.
@@ -121,9 +134,7 @@ export function forFamily(payload) {
   /** @type {Trip} */
   const familyTrip = {
     ...trip,
-    days: /** @type {Trip['days']} */ (
-      days.map((d) => (d.hidden ? { date: d.date, title: '', events: [], hidden: true } : d))
-    ),
+    days: /** @type {Trip['days']} */ (days.map((d) => (d.hidden ? hiddenStub(d) : d))),
     tickets: withoutSecret(trip.tickets, 'ticket'),
     places: withoutSecret(trip.places, 'place', trip.help?.hotel),
   };

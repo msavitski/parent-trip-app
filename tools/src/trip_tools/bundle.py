@@ -97,10 +97,19 @@ def _strings(node: Any) -> Iterator[str]:
             yield from _strings(value)
 
 
+def _hidden_stub(day: dict[str, Any]) -> dict[str, Any]:
+    """A hidden day as the family sees it: date and weather place only."""
+    stub: dict[str, Any] = {"date": day["date"], "title": "", "events": [], "hidden": True}
+    if day.get("weather"):
+        stub["weather"] = day["weather"]
+    return stub
+
+
 def for_family(body: dict[str, Any]) -> dict[str, Any]:
     """What the family sees. The same as web/js/trip.js forFamily: change both together.
 
-    A hidden day keeps its date (Today counts the days right and shows its weather) but not its plan.
+    A hidden day keeps its date and its weather place (Today counts the days right and shows the day's
+    weather) but not its plan.
     Tickets and places that only hidden days use are left out, and so are the translation keys and
     ticket images that only the left-out parts use. A trip without hidden days is returned as it is,
     and running this again on its own result changes nothing.
@@ -125,9 +134,7 @@ def for_family(body: dict[str, Any]) -> dict[str, Any]:
 
     family_trip = {
         **trip,
-        "days": [
-            {"date": d["date"], "title": "", "events": [], "hidden": True} if d.get("hidden") else d for d in days
-        ],
+        "days": [_hidden_stub(d) if d.get("hidden") else d for d in days],
         "tickets": without_secret(trip.get("tickets"), "ticket"),
         "places": without_secret(trip.get("places"), "place", trip.get("help", {}).get("hotel")),
     }

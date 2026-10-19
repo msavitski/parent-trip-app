@@ -22,6 +22,9 @@ export interface Trip {
    */
   welcome?: TextRef | null;
   settings: Settings;
+  /**
+   * Where the forecast is for: the default for days without their own, and off the trip days.
+   */
   weather?: Weather | null;
   places: {
     [k: string]: Place;
@@ -128,6 +131,10 @@ export interface Day {
    * Only the admin password shows this day; the family sees "Plan coming later" (and its weather).
    */
   hidden?: boolean;
+  /**
+   * Where this day's forecast is for (a trip across cities); the trip's `weather` is the default.
+   */
+  weather?: Weather | null;
   events: Event[];
 }
 /**

@@ -25,6 +25,8 @@
   },
 
   // Where the weather forecast is for. Delete this block to hide the weather.
+  // A trip across several cities: give a day its own `weather: { lat, lon }` (it then shows that city's forecast and
+  // sunset); days without one use this block.
   // The forecast (Open-Meteo, free, no key) covers about 16 days ahead and refreshes whenever the phone is online.
   weather: { lat: 41.0082, lon: 28.9784 },
 
