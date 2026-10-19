@@ -54,8 +54,8 @@
   "action.openMap": "Open in Google Maps",
 
   "tile.call": "Call {name}",
-  "tile.taxi": "Taxi card",
-  "tile.taxi.sub": "Hotel address for the driver",
+  "tile.taxi": "Address Card",
+  "tile.taxi.sub": "All addresses is here",
   "tile.hotel": "Way to hotel",
   "tile.hotel.sub": "Directions in Google Maps",
   "tile.tickets": "Tickets",
@@ -64,7 +64,7 @@
   "tile.help": "Help",
   "tile.help.sub": "Emergency, lost, insurance",
 
-  "taxi.title": "Taxi card",
+  "taxi.title": "Address Card",
   "taxi.hint": "Show this screen to the taxi driver",
   "taxi.other": "Another place",
 
