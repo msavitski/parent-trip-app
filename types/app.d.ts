@@ -120,16 +120,23 @@ export interface WeatherDay {
   gust: number | null;
   /** chance of rain, % */
   rain: number | null;
-  /** "18:22", local time at the destination */
+  /** "18:22", local time at the forecast's place */
   sunset: string;
 }
 
-/** localStorage "trip:weather" */
-export interface WeatherCache {
+/** The saved forecast of one place. */
+export interface WeatherPlace {
+  /** When it was fetched (ms). */
   at: number;
-  lat: number;
-  lon: number;
   days: Record<string, WeatherDay>;
+}
+
+/**
+ * localStorage "trip:weather". Older versions kept one place as `{ at, lat, lon, days }`: it is read as one entry of `places`.
+ */
+export interface WeatherCache {
+  /** "lat,lon" -> its forecast. */
+  places: Record<string, WeatherPlace>;
 }
 
 export type Tab = 'today' | 'days' | 'lists' | 'phrases' | 'help' | 'edit';

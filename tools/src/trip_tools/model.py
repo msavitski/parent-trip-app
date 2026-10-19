@@ -137,6 +137,10 @@ class Day(Model):
         default=False,
         description='Only the admin password shows this day; the family sees "Plan coming later" (and its weather).',
     )
+    weather: Weather | None = Field(
+        default=None,
+        description="Where this day's forecast is for (a trip across cities); the trip's `weather` is the default.",
+    )
     events: list[Event]
 
 
@@ -212,7 +216,10 @@ class Trip(Model):
         default=None, description="A greeting on Today before the trip starts (Day 0), e.g. who to call, what to pack."
     )
     settings: Settings
-    weather: Weather | None = None
+    weather: Weather | None = Field(
+        default=None,
+        description="Where the forecast is for: the default for days without their own, and off the trip days.",
+    )
     places: dict[str, Place]
     tickets: dict[str, Ticket]
     days: list[Day] = Field(min_length=1)

@@ -50,9 +50,9 @@ function today() {
   const day = days[index];
   const big = t('today.dayXofY', { x: day.n, y: days.length });
   if (isSecret(day))
-    return html`${hello(big, cap(fmt.long.format(day.when)))}${hiddenNote(day)}${weatherCard(day.when)}${tiles()}`;
+    return html`${hello(big, cap(fmt.long.format(day.when)))}${hiddenNote(day)}${weatherCard(day.when, day.weather)}${tiles()}`;
   return html`${hello(big, `${tr(day.title)} · ${cap(fmt.long.format(day.when))}`)}${hiddenNote(day)}
-    ${nextSign(day)}${weatherCard(day.when)}${tiles()}${day.note ? noteBox(tr(day.note)) : ''}
+    ${nextSign(day)}${weatherCard(day.when, day.weather)}${tiles()}${day.note ? noteBox(tr(day.note)) : ''}
     <section class="section"><h2>${t('today.plan')}</h2>${timeline(day, true)}</section>`;
 }
 
@@ -72,7 +72,7 @@ function dayZero(toStart) {
     <section class="sign"><div class="sign-head"><span class="sign-tag">${t('today.dayZero')}</span><span>${cap(fmt.long.format(first.when))}</span></div>
       <h2 class="sign-title">${count}</h2></section>
     ${welcome ? noteBox(tr(welcome)) : ''}${tiles()}
-    <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when)}</section>
+    <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when, first.weather)}</section>
     <button class="btn" type="button" data-action="tab" data-arg="lists" style="align-self:flex-start">${icon('check')}${t('today.openPacking')}</button>
     ${days.length > 1 ? html`<section class="section"><h2>${t('today.nextDays')}</h2><ol class="days">${days.slice(1).map((day, i) => html`<li>${dayCard(day, i + 1)}</li>`)}</ol></section>` : ''}`;
 }
@@ -84,7 +84,7 @@ function days() {
     const secret = isSecret(day);
     return html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('days.back')}</span></button>
       ${hello(secret ? t('day.hidden') : tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }))}${hiddenNote(day)}
-      ${weatherCard(day.when)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, tripToday()) === 0)}`}`;
+      ${weatherCard(day.when, day.weather)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, tripToday()) === 0)}`}`;
   }
   const range = `${fmt.short.format(all[0].when)} – ${fmt.short.format(all[all.length - 1].when)}`;
   return html`${hello(t('days.title'), range)}<ol class="days">${all.map((day, i) => html`<li>${dayCard(day, i)}</li>`)}</ol>`;

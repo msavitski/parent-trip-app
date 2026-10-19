@@ -1,7 +1,7 @@
 /**
  * Building blocks shared by screens and sheets. All return Html (see ../html.js).
  *
- * @import { Event, Place } from '../../../types/trip'
+ * @import { Event, Place, Weather } from '../../../types/trip'
  * @import { TripDay, WeatherDay } from '../../../types/app'
  */
 import { html, icon } from '../html.js';
@@ -140,7 +140,7 @@ export function dayCard(day, index) {
   const secret = isSecret(day);
   return html`<button class="day${rel === 0 ? ' day--today' : ''}${secret ? ' day--secret' : ''}" type="button" data-action="day" data-arg="${index}">
     <span class="leaf"><small>${fmt.weekday.format(day.when)}</small><b>${day.when.getDate()}</b><small>${fmt.month.format(day.when)}</small></span>
-    <span class="day-main"><span class="day-n">${t('day.n', { n: day.n })}${day.hidden && !secret ? html`<span class="hidden-mark">${icon('eyeOff')}${t('badge.hidden')}</span>` : ''}</span><span class="day-t">${secret ? t('day.hidden') : tr(day.title)}</span>${weatherMini(day.when)}</span>
+    <span class="day-main"><span class="day-n">${t('day.n', { n: day.n })}${day.hidden && !secret ? html`<span class="hidden-mark">${icon('eyeOff')}${t('badge.hidden')}</span>` : ''}</span><span class="day-t">${secret ? t('day.hidden') : tr(day.title)}</span>${weatherMini(day.when, day.weather)}</span>
     ${tag}${icon('chev', 'ic chev')}</button>`;
 }
 
@@ -170,8 +170,9 @@ function wind(kmh) {
   return { value: Math.round(value), unit: t('wx.unit.' + unit) };
 }
 
-function updatedText() {
-  const at = weatherFetchedAt();
+/** @param {Weather | null} [own] */
+function updatedText(own) {
+  const at = weatherFetchedAt(own);
   if (at == null) return '';
   const date = new Date(at);
   const when =
@@ -190,11 +191,15 @@ function updatedText() {
 const weatherCell = (iconName, value, label, unit) => html`<div class="wx-cell"><dt>${label}</dt>
     <dd>${icon(iconName)}<b>${value}${unit ? html`<small>${unit}</small>` : ''}</b></dd></div>`;
 
-/** Max, min, wind, sunset and what to wear for one day. @param {Date} date */
-export function weatherCard(date) {
-  if (!hasWeather()) return '';
+/**
+ * Max, min, wind, sunset and what to wear for one day.
+ * @param {Date} date
+ * @param {Weather | null} [own]  the day's `weather` (without one: the trip's place)
+ */
+export function weatherCard(date, own) {
+  if (!hasWeather(own)) return '';
   /** @type {WeatherDay | null} */
-  const w = weatherFor(date);
+  const w = weatherFor(date, own);
   if (!w) {
     // the real date, also in demo mode: the forecast is for the day's real date
     const key = daysBetween(new Date(), date) > 14 ? 'wx.notYet' : 'wx.none';
@@ -209,12 +214,16 @@ export function weatherCard(date) {
     <div class="wear"><p class="label">${t('wear.title')}</p>
       <p class="wear-main">${icon('shirt')}<span>${t(wear.style)}</span></p>
       ${wear.extra.length ? html`<ul class="wear-list">${wear.extra.map((k) => html`<li>${t(k)}</li>`)}</ul>` : ''}</div>
-    <p class="wx-upd">${updatedText()}</p></section>`;
+    <p class="wx-upd">${updatedText(own)}</p></section>`;
 }
 
-/** Small forecast in the Days list. @param {Date} date */
-function weatherMini(date) {
-  const w = weatherFor(date);
+/**
+ * Small forecast in the Days list.
+ * @param {Date} date
+ * @param {Weather | null} [own]  the day's `weather`
+ */
+function weatherMini(date, own) {
+  const w = weatherFor(date, own);
   if (!w) return '';
   return html`<span class="wx-mini">${icon(WEATHER_ICON[weatherKind(w.code)])}${temp(w.max)} / ${w.min == null ? '–' : temp(w.min)}</span>`;
 }
