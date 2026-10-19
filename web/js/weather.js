@@ -1,8 +1,11 @@
 /**
  * Weather from Open-Meteo (free, no key) and what to wear.
- * The last forecast is kept on the phone (localStorage "trip:weather") for offline use.
+ * A trip can span several cities: every day may have its own place (`day.weather`), the trip's `weather`
+ * is the default. Each place is fetched on its own, and the last forecast of each is kept on the phone
+ * (localStorage "trip:weather") for offline use.
  *
- * @import { WeatherCache, WeatherDay } from '../../types/app'
+ * @import { Weather } from '../../types/trip'
+ * @import { WeatherCache, WeatherDay, WeatherPlace } from '../../types/app'
  */
 import { state } from './state.js';
 import { isoDate } from './trip.js';
@@ -14,29 +17,54 @@ const FIELDS =
 const FRESH_MS = 30 * 60e3; // don't ask again within 30 minutes of a good answer
 const RETRY_MS = 5 * 60e3; // or within 5 minutes of a failed try
 
+/** The key of a place in the saved forecast. @param {Weather} p */
+const keyOf = (p) => `${p.lat},${p.lon}`;
+
+/**
+ * The saved forecast. Older versions kept one place as {at, lat, lon, days}: that one moves into `places`.
+ * @param {any} saved
+ * @returns {WeatherCache | null}
+ */
+function readCache(saved) {
+  if (!saved || typeof saved !== 'object') return null;
+  if (saved.places && typeof saved.places === 'object') return saved;
+  if (typeof saved.lat === 'number' && typeof saved.lon === 'number' && saved.days && typeof saved.at === 'number')
+    return { places: { [keyOf(saved)]: { at: saved.at, days: saved.days } } };
+  return null;
+}
+
 /** @type {WeatherCache | null} */
-let cache = store.get('weather', null);
+let cache = readCache(store.get('weather', null));
 let lastTry = 0;
 
-const place = () => state.trip?.weather ?? null;
+/**
+ * Where a day's forecast is for: its own place, else the trip's.
+ * @param {Weather | null | undefined} own  the day's `weather`
+ * @returns {Weather | null}
+ */
+const placeOf = (own) => own ?? state.trip?.weather ?? null;
 
-/** Whether the saved forecast is for this trip's place. */
-function cacheFits() {
-  const p = place();
-  return !!(p && cache && cache.lat === p.lat && cache.lon === p.lon);
+/** Every distinct place the trip needs a forecast for. */
+function tripPlaces() {
+  const all = [state.trip?.weather, ...(state.trip?.days ?? []).map((d) => d.weather)];
+  /** @type {Map<string, Weather>} */
+  const found = new Map();
+  for (const p of all) if (p) found.set(keyOf(p), p);
+  return [...found.values()];
 }
 
 /**
- * Merge an Open-Meteo answer into the saved forecast (keeps up to 40 days).
- * @param {any} json
+ * Merge an Open-Meteo answer into a place's saved forecast (keeps up to 40 days).
+ * @param {any} json  the answer for this place
+ * @param {WeatherPlace | undefined} old
  * @param {number} at
+ * @returns {WeatherPlace | undefined}
  */
-function ingest(json, at) {
-  const p = place();
-  if (!p) return;
-  const daily = json.daily;
+function ingest(json, old, at) {
+  const daily = json?.daily;
+  if (!daily?.time) return old;
   /** @type {Record<string, WeatherDay>} */
-  const days = cacheFits() && cache ? { ...cache.days } : {};
+  const days = { ...old?.days };
   daily.time.forEach((/** @type {string} */ date, /** @type {number} */ i) => {
     /** @param {string} k */
     const v = (k) => daily[k]?.[i] ?? null;
@@ -50,23 +78,49 @@ function ingest(json, at) {
       wind: v('wind_speed_10m_max'),
       gust: v('wind_gusts_10m_max'),
       rain: v('precipitation_probability_max'),
-      sunset: (v('sunset') || '').slice(11, 16),
+      sunset: (v('sunset') || '').slice(11, 16), // local time at that place (timezone=auto)
     };
   });
-  cache = { at, lat: p.lat, lon: p.lon, days: Object.fromEntries(Object.entries(days).sort().slice(-40)) };
+  return { at, days: Object.fromEntries(Object.entries(days).sort().slice(-40)) };
 }
 
 /**
- * Fetch a fresh forecast if the phone is online and the saved one is old enough.
+ * Fetch a fresh forecast if the phone is online and a saved one is old enough.
  * @param {boolean} [force]  ignore the 30-minute and 5-minute limits (used when the phone comes online)
  * @returns {Promise<boolean>} whether a new forecast arrived
  */
 export async function updateWeather(force = false) {
-  const p = place();
-  if (!p || navigator.onLine === false) return false;
+  const places = tripPlaces();
+  if (!places.length || navigator.onLine === false) return false;
   const now = Date.now();
-  if (!force && (now - lastTry < RETRY_MS || (cacheFits() && cache && now - cache.at < FRESH_MS))) return false;
+  const fresh = places.every((p) => {
+    const saved = cache?.places[keyOf(p)];
+    return saved && now - saved.at < FRESH_MS;
+  });
+  if (!force && (now - lastTry < RETRY_MS || fresh)) return false;
   lastTry = now;
+  // one request per place, side by side: a slow or failed one doesn't cost the others
+  const answers = await Promise.all(places.map(fetchPlace));
+  /** @type {Record<string, WeatherPlace>} */
+  const saved = {};
+  let arrived = false;
+  places.forEach((p, i) => {
+    const old = cache?.places[keyOf(p)];
+    const entry = answers[i] ? ingest(answers[i], old, Date.now()) : old;
+    if (entry) saved[keyOf(p)] = entry;
+    if (entry && entry !== old) arrived = true;
+  });
+  if (!arrived) return false;
+  cache = { places: saved };
+  store.set('weather', cache);
+  return true;
+}
+
+/**
+ * Ask Open-Meteo for one place; null if it can't be reached.
+ * @param {Weather} p
+ */
+async function fetchPlace(p) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10e3);
   try {
@@ -74,25 +128,38 @@ export async function updateWeather(force = false) {
       `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}` +
       `&daily=${FIELDS}&timezone=auto&past_days=1&forecast_days=16`;
     const response = await fetch(url, { signal: ctrl.signal });
-    if (!response.ok) return false;
-    ingest(await response.json(), Date.now());
-    store.set('weather', cache);
-    return true;
+    return response.ok ? await response.json() : null;
   } catch {
-    return false;
+    return null;
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** The forecast for a calendar day, if known. @param {Date} date */
-export const weatherFor = (date) => (cacheFits() && cache?.days[isoDate(date)]) || null;
+/**
+ * The forecast for a calendar day, if known.
+ * @param {Date} date
+ * @param {Weather | null} [own]  the day's `weather`; without one the trip's place is used
+ */
+export const weatherFor = (date, own) => {
+  const p = placeOf(own);
+  return (p && cache?.places[keyOf(p)]?.days[isoDate(date)]) || null;
+};
 
-/** When the saved forecast was fetched (ms), or null. */
-export const weatherFetchedAt = () => (cacheFits() && cache ? cache.at : null);
+/**
+ * When the saved forecast of a place was fetched (ms), or null.
+ * @param {Weather | null} [own]  the day's `weather`
+ */
+export const weatherFetchedAt = (own) => {
+  const p = placeOf(own);
+  return (p && cache?.places[keyOf(p)]?.at) || null;
+};
 
-/** Whether this trip shows weather at all. */
-export const hasWeather = () => !!place();
+/**
+ * Whether a day shows weather at all: it has a place of its own, or the trip has one.
+ * @param {Weather | null} [own]  the day's `weather`
+ */
+export const hasWeather = (own) => !!placeOf(own);
 
 /**
  * WMO weather code -> one of our kinds (also a translation key: wx.code.<kind>).

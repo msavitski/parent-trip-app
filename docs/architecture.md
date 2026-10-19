@@ -83,7 +83,9 @@ delete the old folder and run `trip precache`.
 
 `activate` deletes only caches named `our-trip-*`: other sites on the same `github.io` origin keep theirs.
 
-The weather API isn't cached by the worker: the app keeps the last forecast in `localStorage`.
+The weather API isn't cached by the worker: the app keeps the last forecast in `localStorage`. A trip with several
+weather places (`days[].weather`) fetches each (one Open-Meteo request per place) and keeps each place's forecast and
+fetch time under its `"lat,lon"`; the older single-place shape is read as one of them.
 
 ## Stored on the phone (`localStorage`)
 
@@ -91,7 +93,7 @@ The weather API isn't cached by the worker: the app keeps the last forecast in `
 | ------------------ | ------------------------------------------------- |
 | `trip:key`         | The derived key and the salt/rounds it belongs to |
 | `trip:lang`        | Language chosen on the Help page                  |
-| `trip:weather`     | Last forecast (up to 40 days)                     |
+| `trip:weather`     | Last forecast per place (up to 40 days each)      |
 | `trip:checks:<id>` | Ticked items of a checklist                       |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
