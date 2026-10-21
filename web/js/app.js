@@ -147,8 +147,9 @@ export function useDraft() {
   if (state.draft) initTrip(structuredClone(state.draft));
 }
 
-/** @param {number} index */
+/** Open a day in the Days tab (also from Today's list of days before the trip). @param {number} index */
 export function openDay(index) {
+  state.tab = 'days';
   state.dayOpen = index;
   pushNav();
   render();
