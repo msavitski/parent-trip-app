@@ -1,9 +1,10 @@
 /**
  * Full-screen sheets that open over a tab: taxi card, ticket list, one ticket, money, one phrase.
  *
- * @import { Sheet } from '../../../types/app'
+ * @import { Currency } from '../../../types/trip'
+ * @import { MoneySide, Sheet } from '../../../types/app'
  */
-import { html, icon, mount } from '../html.js';
+import { html, icon } from '../html.js';
 import { locale, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { canSpeak, currentTrip } from '../trip.js';
@@ -51,13 +52,20 @@ function ticket(ticketId) {
 function money() {
   const m = currentTrip().money;
   return html`${sheetHead(t('money.title'))}<div class="money">
-      <label class="label" for="m-in" id="m-lab"></label>
-      <div class="money-in"><span class="cur" id="m-cur" aria-hidden="true"></span><input id="m-in" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="0"></div>
-      <p class="money-out"><span aria-hidden="true">≈ </span><output id="m-out" for="m-in"></output></p>
-      <div class="chips" id="m-quick"></div>
-      <button class="btn" type="button" data-action="money-swap">${icon('swap')}<span id="m-swap"></span></button>
+      ${moneySide('local', m.local, m.quick.local)}${moneySide('home', m.home, m.quick.home)}
       <p class="muted small">${t('money.rate', { home: formatMoney(1, m.home, 0, locale), rate: m.rate, local: m.local.symbol })}</p></div>`;
 }
+
+/**
+ * One currency of the money sheet: its amount (type in either one, the other follows) and its quick amounts.
+ * @param {MoneySide} side
+ * @param {Currency} currency
+ * @param {number[]} quick
+ */
+const moneySide = (side, currency, quick) => html`<div class="money-side">
+      <label class="label" for="m-${side}">${tr(currency.price)}</label>
+      <div class="money-in"><span class="cur" aria-hidden="true">${currency.symbol}</span><input id="m-${side}" data-money="${side}" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="0"></div>
+      <div class="chips">${quick.map((v) => html`<button class="chip" type="button" data-action="amount" data-arg="${side}:${v}">${formatMoney(v, currency, 0, locale)}</button>`)}</div></div>`;
 
 /** @param {number} index */
 function phrase(index) {
@@ -92,43 +100,25 @@ export function renderSheet(sheet) {
 /** Sheets that keep the screen on (shown to a driver, a scanner or a stranger). */
 export const KEEP_AWAKE = ['taxi', 'ticket', 'phrase'];
 
-/** @param {string} id */
-const byId = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
-
 /**
- * Fill the money sheet for its current direction (local -> home or home -> local).
- * @param {Sheet} sheet
- * @param {boolean} reset  clear the typed amount
+ * An amount was typed (or a quick amount tapped) in one currency: show it in the other one, as a plain
+ * number that can be typed over in turn.
+ * @param {HTMLInputElement} input
  */
-export function moneyUpdate(sheet, reset) {
+export function moneyCalc(input) {
   const m = currentTrip().money;
-  const fromLocal = sheet.dir !== 'home';
-  const from = fromLocal ? m.local : m.home;
-  const to = fromLocal ? m.home : m.local;
-  byId('m-lab').textContent = tr(from.price);
-  byId('m-cur').textContent = from.symbol;
-  byId('m-swap').textContent = tr(to.from);
-  const amounts = fromLocal ? m.quick.local : m.quick.home;
-  mount(
-    byId('m-quick'),
-    html`${amounts.map((v) => html`<button class="chip" type="button" data-action="amount" data-arg="${v}">${formatMoney(v, from, 0, locale)}</button>`)}`,
-  );
-  if (reset) /** @type {HTMLInputElement} */ (byId('m-in')).value = '';
-  moneyCalc(sheet);
-}
-
-/** Convert the typed amount. @param {Sheet} sheet */
-export function moneyCalc(sheet) {
-  const m = currentTrip().money;
-  const fromLocal = sheet.dir !== 'home';
-  const to = fromLocal ? m.home : m.local;
-  const typed = /** @type {HTMLInputElement} */ (byId('m-in')).value;
-  const value = parseFloat(typed.replace(',', '.').replace(/[^\d.]/g, ''));
-  const out = byId('m-out');
+  const fromLocal = input.dataset.money === 'local';
+  const other = /** @type {HTMLInputElement} */ (document.getElementById(fromLocal ? 'm-home' : 'm-local'));
+  const value = parseFloat(input.value.replace(',', '.').replace(/[^\d.]/g, ''));
   if (isNaN(value)) {
-    out.textContent = '–';
+    other.value = '';
     return;
   }
   const result = fromLocal ? value / m.rate : value * m.rate;
-  out.textContent = formatMoney(result, to, result >= 100 ? 0 : 2, locale);
+  const decimals = result >= 100 ? 0 : 2;
+  other.value = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: false,
+  }).format(result);
 }

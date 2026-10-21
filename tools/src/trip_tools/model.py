@@ -96,7 +96,7 @@ class Weather(Model):
 
 class Place(Model):
     name: TextRef
-    local_name: str | None = Field(default=None, description="As locals write it (taxi card, maps).")
+    local_name: str | None = Field(default=None, description="As locals write it (taxi card; maps if no address).")
     address: str = Field(description="As locals write it (taxi card, maps).")
     phone: str | None = None
 

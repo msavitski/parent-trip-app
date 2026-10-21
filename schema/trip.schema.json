@@ -706,7 +706,7 @@
             }
           ],
           "default": null,
-          "description": "As locals write it (taxi card, maps)."
+          "description": "As locals write it (taxi card; maps if no address)."
         },
         "address": {
           "description": "As locals write it (taxi card, maps).",

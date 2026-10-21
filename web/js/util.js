@@ -79,8 +79,12 @@ export const bigStore = {
 
 /** @typedef {{ localName?: string | null, address: string }} Locatable */
 
-/** @param {Locatable} place */
-const placeQuery = (place) => encodeURIComponent([place.localName, place.address].filter(Boolean).join(', '));
+/**
+ * What Google Maps looks for: the address, or the local name when there's no address (next to an address,
+ * a name like "son's house" only confuses the search).
+ * @param {Locatable} place
+ */
+const placeQuery = (place) => encodeURIComponent(place.address.trim() || place.localName || '');
 
 /** Google Maps search for a place. @param {Locatable} place */
 export const mapUrl = (place) => 'https://www.google.com/maps/search/?api=1&query=' + placeQuery(place);
