@@ -10,7 +10,7 @@ import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
 import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
-import { KEEP_AWAKE, moneyUpdate, renderSheet } from './ui/sheets.js';
+import { KEEP_AWAKE, renderSheet } from './ui/sheets.js';
 import { keepAwake, stopSpeaking } from './util.js';
 import { updateWeather } from './weather.js';
 
@@ -147,8 +147,9 @@ export function useDraft() {
   if (state.draft) initTrip(structuredClone(state.draft));
 }
 
-/** @param {number} index */
+/** Open a day in the Days tab (also from Today's list of days before the trip). @param {number} index */
 export function openDay(index) {
+  state.tab = 'days';
   state.dayOpen = index;
   pushNav();
   render();
@@ -202,12 +203,8 @@ export function showSheet() {
   sheetEl.hidden = false;
   document.documentElement.classList.add('locked');
   keepAwake(KEEP_AWAKE.includes(top.type));
-  if (top.type === 'money') moneyUpdate(top, false);
   sheetEl.querySelector(/** @type {'button'} */ ('button.close'))?.focus({ preventScroll: true });
 }
-
-/** The sheet on top, if any. */
-export const topSheet = () => state.sheets[state.sheets.length - 1];
 
 /* ---------- start and keep fresh ---------- */
 

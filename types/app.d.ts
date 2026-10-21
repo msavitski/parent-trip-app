@@ -147,6 +147,7 @@ export interface Sheet {
   type: SheetType;
   /** Place id, ticket id or phrase index. */
   arg?: string | number;
-  /** Money sheet direction: from local currency (default) or from home currency. */
-  dir?: 'local' | 'home';
 }
+
+/** One currency of the money sheet. */
+export type MoneySide = 'local' | 'home';

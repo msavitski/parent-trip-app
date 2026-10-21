@@ -125,7 +125,7 @@ export function tiles() {
 }
 
 /**
- * A day in the Days list.
+ * A day in the Days list (and on Today before the trip). Tapping it opens the day in the Days tab.
  * @param {TripDay} day
  * @param {number} index
  */

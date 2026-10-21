@@ -28,7 +28,7 @@ compiling anything.
 | ------------------- | ---------------------------------------------------------------------------------------------- |
 | `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form) |
 | `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline             |
-| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money input, login form           |
+| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money inputs, login form          |
 | `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing         |
 | `html.js`           | `html` tagged template (escapes every value) and the icon set                                  |
 | `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats              |

@@ -18,7 +18,6 @@ import {
   setTab,
   showScreen,
   start,
-  topSheet,
   useDraft,
 } from './app.js';
 import { icon, mount } from './html.js';
@@ -26,7 +25,7 @@ import { t } from './i18n.js';
 import { state } from './state.js';
 import { currentTrip } from './trip.js';
 import { clearTicked, loginScreen, saveTicked, ticked } from './ui/screens.js';
-import { moneyCalc, moneyUpdate } from './ui/sheets.js';
+import { moneyCalc } from './ui/sheets.js';
 import { speak, store } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
 
@@ -101,17 +100,11 @@ const ACTIONS = {
   },
 
   amount(_, arg) {
-    const sheet = topSheet();
-    if (!sheet) return;
-    /** @type {HTMLInputElement} */ (byId('m-in')).value = arg;
-    moneyCalc(sheet);
-  },
-
-  'money-swap'() {
-    const sheet = topSheet();
-    if (!sheet) return;
-    sheet.dir = sheet.dir === 'home' ? 'local' : 'home';
-    moneyUpdate(sheet, true);
+    const [side, value] = arg.split(':');
+    const input = /** @type {HTMLInputElement | null} */ (document.getElementById('m-' + side));
+    if (!input) return;
+    input.value = value;
+    moneyCalc(input);
   },
 
   /* ---------- admin: the Edit tab ---------- */
@@ -307,8 +300,8 @@ export function listen() {
     if (el instanceof HTMLInputElement && el.id === 'f-image') onImage(el);
   });
   document.addEventListener('input', (event) => {
-    const sheet = topSheet();
-    if (/** @type {Element} */ (event.target).id === 'm-in' && sheet) moneyCalc(sheet);
+    const el = event.target;
+    if (el instanceof HTMLInputElement && el.dataset.money) moneyCalc(el);
   });
   document.addEventListener('submit', (event) => {
     const form = event.target;

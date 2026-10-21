@@ -84,7 +84,7 @@ export interface Place {
    */
   name: string | [string] | [string, {[name: string]: string | number}];
   /**
-   * As locals write it (taxi card, maps).
+   * As locals write it (taxi card; maps if no address).
    */
   localName?: string | null;
   /**

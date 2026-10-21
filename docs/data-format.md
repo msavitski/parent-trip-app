@@ -30,7 +30,8 @@ Fields that people read hold a **translation key**, never the text itself:
   value, and a key that doesn't exist.
 - Keys look like `group.name` (`d1.title`, `ev.hagia.note`) and can be reused (`ev.breakfast` on several days).
 - Not translated, because they're the same in every language or meant for locals: addresses and `localName` (taxi
-  card, maps), the phrases' `local` text, names, phone numbers, booking codes, `taxi.ask`.
+  card; maps search the address, and the local name only when there's no address), the phrases' `local` text, names,
+  phone numbers, booking codes, `taxi.ask`.
 
 ## Plurals
 
