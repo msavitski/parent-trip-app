@@ -41,7 +41,8 @@ export function toBase64(bytes) {
 /** @returns {Promise<EncFile | null>} */
 export async function fetchEnc() {
   try {
-    const response = await fetch('trip.enc');
+    // no-cache: GitHub Pages lets the browser keep files for 10 minutes; ask the site whether it changed
+    const response = await fetch('trip.enc', { cache: 'no-cache' });
     return response.ok ? await response.json() : null;
   } catch {
     return null;

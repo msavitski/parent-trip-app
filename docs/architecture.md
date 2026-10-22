@@ -73,8 +73,14 @@ Rules that keep it maintainable:
 | `our-trip-vendor`     | `vendor/` (pdf.js, admin mode only)             | Cache-first, on first use             |
 
 The file list and `<hash>` are generated into `sw.js` by `trip precache` (CI checks they're current). Any change in
-`web/` changes `sw.js`, so phones download the new snapshot in the background and use it from the next launch. A
-phone never runs a mix of old and new files. Trip updates don't touch `sw.js` and show on the same launch.
+`web/` changes `sw.js`, so phones download the new snapshot in the background. A phone never runs a mix of old and
+new files. Trip updates don't touch `sw.js` and show on the same launch.
+
+An app that stays open (a home-screen app is resumed, not launched) catches up in `app.js`: every time it returns to
+the foreground it asks the browser to check `sw.js` and re-downloads `trip.enc` (`no-cache`, so GitHub Pages' 10-minute
+browser cache can't hide a publish). When a new worker takes over, or `trip.enc` has changed, the page reloads, unless a
+sheet or the editor is open, a publish is running or the admin has unpublished edits; then it waits for the next
+return to the foreground.
 
 `vendor/` is left out of the snapshot, so the family's phones never download pdf.js (about 1.7 MB). It holds
 `pdf.min.mjs`, `pdf.worker.min.mjs` and `LICENSE` from the `pdfjs-dist` npm package, in a folder named after the
