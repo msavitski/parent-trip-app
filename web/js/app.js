@@ -3,8 +3,9 @@
  *
  * @import { EditView, Opened, SheetType, Tab } from '../../types/app'
  */
-import { discardDraft, loadDraft } from './admin/draft.js';
+import { discardDraft, isDirty, loadDraft } from './admin/draft.js';
 import { editScreen } from './admin/editor.js';
+import { pendingEnc } from './admin/publish.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
@@ -12,6 +13,7 @@ import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
 import { KEEP_AWAKE, renderSheet } from './ui/sheets.js';
 import { keepAwake, stopSpeaking } from './util.js';
+import { fetchEnc } from './vault.js';
 import { updateWeather } from './weather.js';
 
 /** @param {string} id */
@@ -221,6 +223,30 @@ async function refreshWeather(force = false) {
   if (changed && !state.sheets.length && (state.tab === 'today' || state.tab === 'days')) render();
 }
 
+/**
+ * A newer app or trip is waiting: the service worker took over with new files, or the site serves a
+ * trip.enc other than the one this page opened. A page that stays open (a phone's home-screen app is
+ * resumed, not launched) would otherwise keep showing the old one.
+ */
+let updateWaiting = false;
+const hadWorker = !!navigator.serviceWorker?.controller; // the very first install also "takes over": not an update
+
+/** Reload into the new version, unless that would lose something (an open sheet or editor, unpublished edits). */
+function applyUpdate() {
+  if (updateWaiting && !state.sheets.length && !state.edit.length && !state.publishing && !isDirty()) location.reload();
+}
+
+/** Ask for new app files (the browser only checks on navigation) and for a new trip.enc. */
+async function checkForUpdates() {
+  navigator.serviceWorker
+    ?.getRegistration()
+    .then((registration) => registration?.update())
+    .catch(() => {});
+  const fetched = await fetchEnc();
+  if (fetched && state.enc && (await pendingEnc(fetched)).iv !== state.enc.iv) updateWaiting = true;
+  applyUpdate();
+}
+
 let watching = false;
 function watch() {
   if (watching) return;
@@ -233,7 +259,13 @@ function watch() {
     if (!document.hidden) {
       refresh();
       refreshWeather();
+      checkForUpdates();
     }
+  });
+  navigator.serviceWorker?.addEventListener('controllerchange', () => {
+    if (!hadWorker) return;
+    updateWaiting = true;
+    applyUpdate();
   });
   // the moment the phone gets internet back, fetch a fresh forecast; when it loses it, say so on the card
   addEventListener('online', () => refreshWeather(true));
