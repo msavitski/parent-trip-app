@@ -5,7 +5,7 @@
  * @import { SheetType, Tab } from '../../types/app'
  */
 import { discardDraft, readImage, saveDraft } from './admin/draft.js';
-import { applyForm, deleteFromDraft, pagesNote, parseEditArg, toggleHidden } from './admin/editor.js';
+import { applyForm, deleteFromDraft, pagesNote, parseEditArg, rememberFold, toggleHidden } from './admin/editor.js';
 import { pickResult, searchMap, useMapPlace } from './admin/map.js';
 import { publish } from './admin/publish.js';
 import {
@@ -26,7 +26,17 @@ import { icon, mount } from './html.js';
 import { t } from './i18n.js';
 import { state } from './state.js';
 import { currentTrip } from './trip.js';
-import { clearTicked, loginScreen, saveTicked, ticked } from './ui/screens.js';
+import {
+  addMine,
+  clearTicked,
+  listCount,
+  loginScreen,
+  mine,
+  removeMine,
+  saveMine,
+  saveTicked,
+  ticked,
+} from './ui/screens.js';
 import { moneyCalc, zoomTicket } from './ui/sheets.js';
 import { speak, store } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
@@ -88,6 +98,12 @@ const ACTIONS = {
       clearTicked(arg);
       render();
     }),
+
+  // the person's own item of a list: delete it
+  'mine-remove': (el, arg) => {
+    removeMine(el.dataset.list ?? '', arg);
+    render();
+  },
 
   forget: (el) =>
     confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'help.forgetConfirm', 'help.forget', () =>
@@ -210,6 +226,9 @@ function onEditSubmit(form) {
   for (const marked of form.querySelectorAll('[aria-invalid]')) marked.removeAttribute('aria-invalid');
   const field = error.field ? document.getElementById(error.field) : null;
   if (field) {
+    // the field may be in a collapsed section: open it first, or it can't take the focus
+    const folded = field.closest('details');
+    if (folded) folded.open = true;
     field.setAttribute('aria-invalid', 'true');
     field.focus({ preventScroll: true });
     field.scrollIntoView({ block: 'center' });
@@ -260,14 +279,37 @@ async function onImage(input) {
 /** Tick or untick a checklist item. @param {HTMLInputElement} box */
 function onCheck(box) {
   const listId = box.dataset.list ?? '';
-  const item = Number(box.dataset.item);
-  const done = ticked(listId);
-  const at = done.indexOf(item);
-  if (box.checked && at < 0) done.push(item);
-  if (!box.checked && at >= 0) done.splice(at, 1);
-  saveTicked(listId);
+  if (box.dataset.mine) {
+    const own = mine(listId).find((item) => item.id === box.dataset.mine);
+    if (own) own.done = box.checked;
+    saveMine(listId);
+  } else {
+    const item = Number(box.dataset.item);
+    const done = ticked(listId);
+    const at = done.indexOf(item);
+    if (box.checked && at < 0) done.push(item);
+    if (!box.checked && at >= 0) done.splice(at, 1);
+    saveTicked(listId);
+  }
   const list = currentTrip().lists.find((l) => l.id === listId);
-  byId('count-' + listId).textContent = t('lists.count', { x: done.length, y: list?.items.length ?? 0 });
+  if (list) byId('count-' + listId).textContent = t('lists.count', listCount(list));
+}
+
+/**
+ * Add the typed item to the person's own items of a list, and keep the keyboard on the field for the next one.
+ * @param {HTMLFormElement} form
+ */
+function onAddItem(form) {
+  const listId = form.dataset.addItem ?? '';
+  const input = /** @type {HTMLInputElement} */ (form.elements.namedItem('text'));
+  if (!addMine(listId, input.value)) {
+    input.focus();
+    return;
+  }
+  render();
+  // the screen was drawn again: find the same list's field and carry on typing there
+  const next = document.querySelector(`form[data-add-item="${CSS.escape(listId)}"] input`);
+  if (next instanceof HTMLInputElement) next.focus({ preventScroll: true });
 }
 
 /** The login form in the new language, keeping what was typed and the error shown. */
@@ -329,9 +371,25 @@ export function listen() {
     if (el instanceof HTMLInputElement && el.dataset.list) onCheck(el);
     if (el instanceof HTMLInputElement && el.id === 'f-image') onImage(el);
   });
+  // a section of the Edit tab was opened or closed (the event does not bubble, so it is caught on the way down)
+  document.addEventListener(
+    'toggle',
+    (event) => {
+      if (event.target instanceof HTMLDetailsElement) rememberFold(event.target);
+    },
+    true,
+  );
   document.addEventListener('input', (event) => {
     const el = event.target;
     if (el instanceof HTMLInputElement && el.dataset.money) moneyCalc(el);
+  });
+  // the keyboard's check mark (Done) is an Enter key; outside a form it does nothing, so close the keyboard here
+  document.addEventListener('keydown', (event) => {
+    const el = event.target;
+    if (event.key === 'Enter' && el instanceof HTMLInputElement && el.dataset.money) {
+      event.preventDefault();
+      el.blur();
+    }
   });
   // moving to the other amount: select what the converter put there, so typing replaces it instead of adding to it
   document.addEventListener('focusin', (event) => {
@@ -345,6 +403,10 @@ export function listen() {
     if (form.id === 'map-search') {
       event.preventDefault();
       searchMap();
+    }
+    if (form.dataset.addItem !== undefined) {
+      event.preventDefault();
+      onAddItem(form);
     }
     if (form.id === 'edit-form') {
       event.preventDefault();

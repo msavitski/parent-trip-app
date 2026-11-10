@@ -88,7 +88,7 @@ the parents' phones get the update within a few minutes. See [security](docs/sec
   the address and name found there go into the form, where you can still change them by hand, or you can skip the
   map and type the address as before. It needs the internet and OpenStreetMap sees what you search for
   ([security](docs/security.md)).
-- **Tickets** show a picture with **+ / −** buttons (a big PDF ticket is readable zoomed in, and scrolls), and the
+- **Tickets** show a picture you zoom with **+ / −** or two fingers (a big PDF ticket is readable zoomed in, and scrolls), and the
   booking code is optional: a ticket can be just a picture or a PDF.
 - **Hidden days.** The eye next to each day in Edit hides it from the family: their phones show "Plan coming later"
   and the weather for that date, and leave out the tickets and places only hidden days use. Their plans are

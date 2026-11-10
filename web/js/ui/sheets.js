@@ -47,14 +47,16 @@ function tickets(only) {
   )}</ul>`;
 }
 
-/** How far the + button zooms a ticket's picture: 1 is the width of the screen. */
+/** The zoom the + / - buttons step through: 1 is the width of the screen. A pinch can stop anywhere between. */
 const ZOOMS = [1, 1.5, 2, 3, 4];
-let zoomAt = 0;
+const MIN_ZOOM = ZOOMS[0];
+const MAX_ZOOM = ZOOMS[ZOOMS.length - 1];
+let zoom = MIN_ZOOM;
 
 /** @param {string} ticketId */
 function ticket(ticketId) {
   const tk = currentTrip().tickets[ticketId];
-  zoomAt = 0;
+  zoom = MIN_ZOOM;
   // the code is optional (a ticket can be just a picture or a PDF)
   return html`${sheetHead(tr(tk.title))}<div class="ticket">
       ${
@@ -76,24 +78,29 @@ const zoomBar = () => html`<div class="ticket-zoom" role="group" aria-label="${t
       <button class="btn" type="button" data-action="zoom" data-arg="in" aria-label="${t('ticket.zoomIn')}">${icon('plus')}</button></div>`;
 
 /**
- * Zoom the open ticket's picture, keeping the part in the middle of the screen in the middle.
- * @param {'in' | 'out' | 'fit'} how
+ * Zoom the open ticket's picture, keeping the point (x, y) of the screen over the same part of it:
+ * the middle of the screen for the buttons, the middle between the fingers for a pinch.
+ * @param {number} next
+ * @param {number} [x]
+ * @param {number} [y]
  */
-export function zoomTicket(how) {
+function setZoom(next, x, y) {
   const view = document.getElementById('ticket-view');
   const img = view?.querySelector('img');
   const sheet = document.getElementById('sheet');
   if (!view || !img || !sheet) return;
-  zoomAt = how === 'fit' ? 0 : Math.max(0, Math.min(ZOOMS.length - 1, zoomAt + (how === 'in' ? 1 : -1)));
+  zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+  const box = view.getBoundingClientRect();
+  const at = { x: x ?? box.left + box.width / 2, y: y ?? sheet.clientHeight / 2 };
   const before = img.getBoundingClientRect();
-  const down = (innerHeight / 2 - before.top) / before.height;
-  const across = (view.scrollLeft + view.clientWidth / 2) / view.scrollWidth;
-  view.style.setProperty('--zoom', String(ZOOMS[zoomAt]));
+  const down = (at.y - before.top) / before.height;
+  const across = (view.scrollLeft + at.x - box.left) / view.scrollWidth;
+  view.style.setProperty('--zoom', String(zoom));
   const after = img.getBoundingClientRect();
-  sheet.scrollTop += after.top + down * after.height - innerHeight / 2;
-  view.scrollLeft = across * view.scrollWidth - view.clientWidth / 2;
+  sheet.scrollTop += after.top + down * after.height - at.y;
+  view.scrollLeft = across * view.scrollWidth - (at.x - box.left);
   const level = document.getElementById('zoom-level');
-  if (level) level.textContent = `${Math.round(ZOOMS[zoomAt] * 100)}%`;
+  if (level) level.textContent = `${Math.round(zoom * 100)}%`;
   /** @param {string} arg @param {boolean} off */
   const toggle = (arg, off) => {
     const button = /** @type {HTMLButtonElement | null} */ (
@@ -101,8 +108,53 @@ export function zoomTicket(how) {
     );
     if (button) button.disabled = off;
   };
-  toggle('out', zoomAt === 0);
-  toggle('in', zoomAt === ZOOMS.length - 1);
+  toggle('out', zoom <= MIN_ZOOM);
+  toggle('in', zoom >= MAX_ZOOM);
+}
+
+/**
+ * The + / - / 100% buttons: the next step above or below the current zoom (a pinch may have left it between steps).
+ * @param {'in' | 'out' | 'fit'} how
+ */
+export function zoomTicket(how) {
+  const near = 0.01;
+  if (how === 'fit') setZoom(MIN_ZOOM);
+  else if (how === 'in') setZoom(ZOOMS.find((z) => z > zoom + near) ?? MAX_ZOOM);
+  else setZoom([...ZOOMS].reverse().find((z) => z < zoom - near) ?? MIN_ZOOM);
+}
+
+/**
+ * Pinch with two fingers on an open ticket. The browser's own pinch zoom is off there (see .sheet--ticket in
+ * app.css: it zooms the page, not the picture, and leaves the bottom of a tall document out of reach), so the
+ * picture is zoomed here, around the middle between the fingers, and the same zoom the buttons use.
+ * @param {HTMLElement} sheet  the sheet layer: it stays, only its content changes
+ */
+export function listenPinch(sheet) {
+  /** @type {{ spread: number, zoom: number } | null} */
+  let start = null;
+  /** @param {TouchList} touches */
+  const spread = (touches) =>
+    Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+  /** @param {TouchEvent} event */
+  const onTouch = (event) => {
+    const two = event.touches.length === 2 && document.getElementById('ticket-view') !== null;
+    if (!two) {
+      start = null;
+      return;
+    }
+    if (event.type === 'touchstart' || !start) start = { spread: spread(event.touches) || 1, zoom };
+    if (event.cancelable) event.preventDefault(); // no scrolling while pinching
+    if (event.type !== 'touchmove') return;
+    const [a, b] = [event.touches[0], event.touches[1]];
+    setZoom(
+      (start.zoom * spread(event.touches)) / start.spread,
+      (a.clientX + b.clientX) / 2,
+      (a.clientY + b.clientY) / 2,
+    );
+  };
+  // not passive: the page must not scroll or zoom under the fingers
+  for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel'])
+    sheet.addEventListener(type, /** @type {EventListener} */ (onTouch), { passive: false });
 }
 
 function money() {

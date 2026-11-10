@@ -36,6 +36,14 @@ function readCache(saved) {
 /** @type {WeatherCache | null} */
 let cache = readCache(store.get('weather', null));
 let lastTry = 0;
+/**
+ * Whether the last try to reach the forecast service failed for every place. This, not navigator.onLine, says
+ * "no internet": that flag is sometimes false on a phone that is online (a VPN, a captive portal, some browsers).
+ */
+let unreachable = false;
+
+/** Whether the forecast service could not be reached the last time we tried. */
+export const weatherUnreachable = () => unreachable;
 
 /**
  * Where a day's forecast is for: its own place, else the trip's.
@@ -85,13 +93,15 @@ function ingest(json, old, at) {
 }
 
 /**
- * Fetch a fresh forecast if the phone is online and a saved one is old enough.
- * @param {boolean} [force]  ignore the 30-minute and 5-minute limits (used when the phone comes online)
- * @returns {Promise<boolean>} whether a new forecast arrived
+ * Fetch a fresh forecast if a saved one is old enough. Tries even when the phone says it is offline: a failed
+ * request is quick and is what tells the screen to say so.
+ * @param {boolean} [force]  ignore the 30-minute and 5-minute limits (used when the phone goes online or offline)
+ * @returns {Promise<boolean>} whether the screen has something new to show: a new forecast, or a change in whether
+ *   the service can be reached
  */
 export async function updateWeather(force = false) {
   const places = tripPlaces();
-  if (!places.length || navigator.onLine === false) return false;
+  if (!places.length) return false;
   const now = Date.now();
   const fresh = places.every((p) => {
     const saved = cache?.places[keyOf(p)];
@@ -101,6 +111,8 @@ export async function updateWeather(force = false) {
   lastTry = now;
   // one request per place, side by side: a slow or failed one doesn't cost the others
   const answers = await Promise.all(places.map(fetchPlace));
+  const wasUnreachable = unreachable;
+  unreachable = answers.every((a) => a === null);
   /** @type {Record<string, WeatherPlace>} */
   const saved = {};
   let arrived = false;
@@ -110,7 +122,7 @@ export async function updateWeather(force = false) {
     if (entry) saved[keyOf(p)] = entry;
     if (entry && entry !== old) arrived = true;
   });
-  if (!arrived) return false;
+  if (!arrived) return unreachable !== wasUnreachable;
   cache = { places: saved };
   store.set('weather', cache);
   return true;

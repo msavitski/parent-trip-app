@@ -38,7 +38,7 @@ compiling anything.
 | `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                               |
 | `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header            |
 | `ui/screens.js`     | The five tabs, login and message screens                                                           |
-| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket (with its zoom buttons), money, phrase          |
+| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket (zoom buttons, pinch), money, phrase            |
 | `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft                  |
 | `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device            |
 | `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed         |
@@ -119,6 +119,7 @@ fetch time under its `"lat,lon"`; the older single-place shape is read as one of
 | `trip:lang`        | Language chosen on the Help page                  |
 | `trip:weather`     | Last forecast per place (up to 40 days each)      |
 | `trip:checks:<id>` | Ticked items of a checklist                       |
+| `trip:mine:<id>`   | A person's own items of a checklist (this phone)  |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
 

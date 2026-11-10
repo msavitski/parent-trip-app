@@ -32,6 +32,57 @@ export const saveTicked = (listId) => store.set('checks:' + listId, ticked(listI
 export function clearTicked(listId) {
   checks[listId] = [];
   saveTicked(listId);
+  for (const item of mine(listId)) item.done = false;
+  saveMine(listId);
+}
+
+/**
+ * The person's own items of a list: written in the language they use, kept on this phone only (not in the trip, so
+ * not shared and not translated), and ticked with the same checkbox as the trip's items.
+ * @typedef {{ id: string, text: string, done: boolean }} OwnItem
+ */
+
+/** @type {Record<string, OwnItem[]>} */
+const own = {};
+
+/** The own items of a list (a live array: change it, then call saveMine). @param {string} listId */
+export const mine = (listId) => (own[listId] ??= store.get('mine:' + listId, /** @type {OwnItem[]} */ ([])));
+
+/** @param {string} listId */
+export const saveMine = (listId) => store.set('mine:' + listId, mine(listId));
+
+/**
+ * Add an item of one's own to a list.
+ * @param {string} listId
+ * @param {string} text
+ * @returns {boolean}  false when there was nothing to add
+ */
+export function addMine(listId, text) {
+  const clean = text.trim().replace(/\s+/g, ' ');
+  if (!clean) return false;
+  mine(listId).push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text: clean, done: false });
+  saveMine(listId);
+  return true;
+}
+
+/** @param {string} listId @param {string} id */
+export function removeMine(listId, id) {
+  own[listId] = mine(listId).filter((item) => item.id !== id);
+  saveMine(listId);
+}
+
+/** How many items of a list are ticked, and how many there are, the person's own included. @param {{ id: string, items: unknown[] }} list */
+export const listCount = (list) => ({
+  x: ticked(list.id).length + mine(list.id).filter((item) => item.done).length,
+  y: list.items.length + mine(list.id).length,
+});
+
+/**
+ * The weather of today's real date at the trip's place, for when Today has no trip day to show (before and after the trip).
+ */
+function weatherToday() {
+  const card = weatherCard(new Date());
+  return card ? html`<section class="section"><h2>${t('today.weatherNow')}</h2>${card}</section>` : '';
 }
 
 function today() {
@@ -42,7 +93,8 @@ function today() {
   const toStart = daysBetween(now, first.when);
 
   if (toStart > 0) return dayZero(toStart);
-  if (daysBetween(last.when, now) > 0) return html`${hello(t('today.welcomeHome'), t('today.welcomeSub'))}${tiles()}`;
+  if (daysBetween(last.when, now) > 0)
+    return html`${hello(t('today.welcomeHome'), t('today.welcomeSub'))}${weatherToday()}${tiles()}`;
 
   const index = todayIndex();
   if (index < 0) return html`${hello(t('today.freeDay'), cap(fmt.long.format(now)))}${weatherCard(now)}${tiles()}`;
@@ -71,7 +123,7 @@ function dayZero(toStart) {
   return html`${hello(t('today.greeting'), range)}
     <section class="sign"><div class="sign-head"><span class="sign-tag">${t('today.dayZero')}</span><span>${cap(fmt.long.format(first.when))}</span></div>
       <h2 class="sign-title">${count}</h2></section>
-    ${welcome ? noteBox(tr(welcome)) : ''}${tiles()}
+    ${weatherToday()}${welcome ? noteBox(tr(welcome)) : ''}${tiles()}
     <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when, first.weather)}</section>
     <button class="btn" type="button" data-action="tab" data-arg="lists" style="align-self:flex-start">${icon('check')}${t('today.openPacking')}</button>
     ${days.length > 1 ? html`<section class="section"><h2>${t('today.nextDays')}</h2><ol class="days">${days.slice(1).map((day, i) => html`<li>${dayCard(day, i + 1)}</li>`)}</ol></section>` : ''}`;
@@ -94,11 +146,18 @@ function lists() {
   return html`${hello(t('lists.title'), '')}<div class="stack">${currentTrip().lists.map((list) => {
     const done = ticked(list.id);
     return html`<section class="card list">
-      <div class="list-head"><h2>${tr(list.title)}</h2><span class="count" id="count-${list.id}">${t('lists.count', { x: done.length, y: list.items.length })}</span></div>
+      <div class="list-head"><h2>${tr(list.title)}</h2><span class="count" id="count-${list.id}">${t('lists.count', listCount(list))}</span></div>
       <ul class="checks">${list.items.map(
         (item, j) => html`<li><label class="check" for="c-${list.id}-${j}">
         <input type="checkbox" id="c-${list.id}-${j}" data-list="${list.id}" data-item="${j}"${done.includes(j) ? html` checked` : ''}><span>${tr(item)}</span></label></li>`,
+      )}${mine(list.id).map(
+        (item) => html`<li class="check-mine"><label class="check" for="m-${list.id}-${item.id}">
+        <input type="checkbox" id="m-${list.id}-${item.id}" data-list="${list.id}" data-mine="${item.id}"${item.done ? html` checked` : ''}><span>${item.text}</span></label>
+        <button class="check-del" type="button" data-action="mine-remove" data-list="${list.id}" data-arg="${item.id}" aria-label="${t('lists.remove', { item: item.text })}">${icon('trash')}</button></li>`,
       )}</ul>
+      <form class="add-item" data-add-item="${list.id}" novalidate>
+        <input name="text" maxlength="200" enterkeyhint="done" autocomplete="off" aria-label="${t('lists.addLabel', { list: tr(list.title) })}" placeholder="${t('lists.addPlaceholder')}">
+        <button class="btn" type="submit">${icon('plus')}<span>${t('lists.add')}</span></button></form>
       <button class="btn btn--quiet" type="button" data-action="reset-list" data-arg="${list.id}">${t('lists.reset')}</button></section>`;
   })}</div>`;
 }
