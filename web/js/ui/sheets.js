@@ -9,7 +9,7 @@ import { locale, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { canSpeak, currentTrip } from '../trip.js';
 import { formatMoney, mapUrl } from '../util.js';
-import { placeName, sheetHead } from './components.js';
+import { placeName, screen, sheetHeader } from './components.js';
 import { mapSheet } from '../admin/map.js';
 
 /** @param {string} placeId */
@@ -18,7 +18,9 @@ function taxi(placeId) {
   const place = trip.places[placeId];
   const speechLang = state.settings.speechLang;
   const others = Object.entries(trip.places).filter(([id]) => id !== placeId);
-  return html`${sheetHead(t('taxi.title'))}
+  return screen(
+    sheetHeader(t('taxi.title')),
+    html`
       <p class="taxi-hint">${t('taxi.hint')}</p>
       <div class="taxi-card" lang="${speechLang}">
         <p class="taxi-ask">${trip.taxi.ask}</p>
@@ -28,7 +30,8 @@ function taxi(placeId) {
       <div class="actions"><a class="btn" href="${mapUrl(place)}" target="_blank" rel="noopener">${icon('pin')}${t('action.openMap')}</a>
         ${canSpeak() ? html`<button class="btn" type="button" data-action="say" data-arg="${`${trip.taxi.ask} ${place.localName || ''}`}">${icon('vol')}${t('action.hear')}</button>` : ''}</div>
       <div class="section"><h3 class="sub">${t('taxi.other')}</h3>
-        <div class="chips">${others.map(([id, other]) => html`<button class="chip" type="button" data-action="swap-place" data-arg="${id}">${tr(other.name)}</button>`)}</div></div>`;
+        <div class="chips">${others.map(([id, other]) => html`<button class="chip" type="button" data-action="swap-place" data-arg="${id}">${tr(other.name)}</button>`)}</div></div>`,
+  );
 }
 
 /**
@@ -41,10 +44,13 @@ function tickets(only) {
   const all = Object.entries(currentTrip().tickets)
     .filter(([id]) => !wanted || wanted.includes(id))
     .reverse();
-  return html`${sheetHead(t('tickets.title'))}<ul class="tk-list">${all.map(
-    ([id, tk]) => html`<li>
+  return screen(
+    sheetHeader(t('tickets.title')),
+    html`<ul class="tk-list">${all.map(
+      ([id, tk]) => html`<li>
       <button class="tk" type="button" data-action="ticket" data-arg="${id}">${icon('ticket')}<span class="tk-main"><b>${tr(tk.title)}</b><span>${tr(tk.when)}</span></span>${icon('chev', 'ic chev')}</button></li>`,
-  )}</ul>`;
+    )}</ul>`,
+  );
 }
 
 /** The zoom the + / - buttons step through: 1 is the width of the screen. A pinch can stop anywhere between. */
@@ -58,7 +64,9 @@ function ticket(ticketId) {
   const tk = currentTrip().tickets[ticketId];
   zoom = MIN_ZOOM;
   // the code is optional (a ticket can be just a picture or a PDF)
-  return html`${sheetHead(tr(tk.title))}<div class="ticket">
+  return screen(
+    sheetHeader(tr(tk.title)),
+    html`<div class="ticket">
       ${
         tk.image
           ? html`<div class="ticket-view" id="ticket-view"><div class="ticket-pan"><img class="ticket-img" src="${tk.image}" alt="${tr(tk.title)}"></div></div>`
@@ -68,7 +76,8 @@ function ticket(ticketId) {
       ${tk.code ? html`<p class="label">${t('ticket.code')}</p><p class="ticket-code">${tk.code}</p>` : ''}
       ${tk.details?.length ? html`<ul class="ticket-details">${tk.details.map((d) => html`<li>${tr(d)}</li>`)}</ul>` : ''}
       <p class="ticket-hint">${icon('sun')}<span>${t('ticket.brightness')}</span></p></div>
-    ${tk.image ? zoomBar() : ''}`;
+    ${tk.image ? zoomBar() : ''}`,
+  );
 }
 
 /** The - / 100% / + buttons that make a ticket's picture bigger (a QR code, or the small print of a PDF). */
@@ -87,7 +96,7 @@ const zoomBar = () => html`<div class="ticket-zoom" role="group" aria-label="${t
 function setZoom(next, x, y) {
   const view = document.getElementById('ticket-view');
   const img = view?.querySelector('img');
-  const sheet = document.getElementById('sheet');
+  const sheet = document.getElementById('sheet-page'); // the sheet's scrolling area
   if (!view || !img || !sheet) return;
   zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
   const box = view.getBoundingClientRect();
@@ -159,9 +168,12 @@ export function listenPinch(sheet) {
 
 function money() {
   const m = currentTrip().money;
-  return html`${sheetHead(t('money.title'))}<div class="money">
+  return screen(
+    sheetHeader(t('money.title')),
+    html`<div class="money">
       ${moneySide('local', m.local, m.quick.local)}${moneySide('home', m.home, m.quick.home)}
-      <p class="muted small">${t('money.rate', { home: formatMoney(1, m.home, 0, locale), rate: m.rate, local: m.local.symbol })}</p></div>`;
+      <p class="muted small">${t('money.rate', { home: formatMoney(1, m.home, 0, locale), rate: m.rate, local: m.local.symbol })}</p></div>`,
+  );
 }
 
 /**
@@ -178,12 +190,15 @@ const moneySide = (side, currency, quick) => html`<div class="money-side">
 /** @param {number} index */
 function phrase(index) {
   const p = currentTrip().phrases[index];
-  return html`${sheetHead('')}<div class="show">
+  return screen(
+    sheetHeader(t('phrases.title')),
+    html`<div class="show">
       <p class="label">${t('phrases.showPerson')}</p>
       <p class="show-local" lang="${state.settings.speechLang}">${p.local}</p>
       ${p.extra ? html`<p class="show-extra">${p.extra}</p>` : ''}
       <p class="show-say">${tr(p.say)}</p><p class="show-mean">${tr(p.meaning)}</p>
-      ${canSpeak() ? html`<button class="btn btn--solid" type="button" data-action="say" data-arg="${p.local}">${icon('vol')}${t('action.hear')}</button>` : ''}</div>`;
+      ${canSpeak() ? html`<button class="btn btn--solid" type="button" data-action="say" data-arg="${p.local}">${icon('vol')}${t('action.hear')}</button>` : ''}</div>`,
+  );
 }
 
 /**

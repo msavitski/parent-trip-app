@@ -22,12 +22,25 @@ The site has no build step: the browser loads `web/js/main.js` as a native ES mo
 Types are written as JSDoc and checked by `tsc` (`jsconfig.json`), so editors and CI catch type errors without
 compiling anything.
 
+## The app shell
+
+`index.html` has one layout that every screen uses: a **header** (`#bar`), **one area that scrolls** (`#page`) and
+the **tab bar**, in a fixed grid, so the header and the tab bar never move and only the middle scrolls. A **sheet**
+(ticket, money, taxi, phrase, map) covers the header and the page, not the tab bar, with the same parts of its own
+(`#sheet-bar`, `#sheet-page`). The document itself never scrolls, and the page can't be pinched (`user-scalable=no`,
+`touch-action`), so nothing is displaced by zoom; the ticket zooms its own picture.
+
+Every screen is built as `screen(head, body)` (`ui/components.js`): `head` comes from `pageHeader()` (Back, title, an
+action such as Save, an error line) and is drawn in the bar, `body` is drawn in the page. Tabs, an opened day, sheets
+and the admin's screens all use it, so the header looks and behaves the same everywhere. `app.js` is the only place
+that decides where the two parts go.
+
 ## Frontend modules (`web/js/`)
 
 | Module              | Responsibility                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------- |
 | `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form)     |
-| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline                 |
+| `app.js`            | The app shell and rendering, tab bar, sheets, Back button, refresh timer, online/offline           |
 | `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money inputs, login form              |
 | `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing             |
 | `html.js`           | `html` tagged template (escapes every value) and the icon set                                      |
@@ -36,7 +49,7 @@ compiling anything.
 | `trip.js`           | Turn the payload into the current trip (demo day, sorted events, family's view); date helpers      |
 | `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                           |
 | `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                               |
-| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header            |
+| `ui/components.js`  | Shared pieces: `screen`, `pageHeader`, `fold`, timeline, Next sign, tiles, day card, weather card  |
 | `ui/screens.js`     | The five tabs, login and message screens                                                           |
 | `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket (zoom buttons, pinch), money, phrase            |
 | `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft                  |
@@ -120,6 +133,7 @@ fetch time under its `"lat,lon"`; the older single-place shape is read as one of
 | `trip:weather`     | Last forecast per place (up to 40 days each)      |
 | `trip:checks:<id>` | Ticked items of a checklist                       |
 | `trip:mine:<id>`   | A person's own items of a checklist (this phone)  |
+| `trip:folds`       | Which collapsible sections are open or closed     |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
 

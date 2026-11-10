@@ -8,12 +8,14 @@ import { canSpeak, currentHotelId, currentTrip, daysBetween, todayIndex, tripTod
 import { mapUrl, store, telUrl } from '../util.js';
 import {
   dayCard,
-  hello,
+  fold,
   hiddenNote,
   isSecret,
   nextSign,
   noteBox,
+  pageHeader,
   person,
+  screen,
   tiles,
   timeline,
   weatherCard,
@@ -94,18 +96,25 @@ function today() {
 
   if (toStart > 0) return dayZero(toStart);
   if (daysBetween(last.when, now) > 0)
-    return html`${hello(t('today.welcomeHome'), t('today.welcomeSub'))}${weatherToday()}${tiles()}`;
+    return screen(pageHeader(t('today.welcomeHome'), t('today.welcomeSub')), html`${weatherToday()}${tiles()}`);
 
   const index = todayIndex();
-  if (index < 0) return html`${hello(t('today.freeDay'), cap(fmt.long.format(now)))}${weatherCard(now)}${tiles()}`;
+  if (index < 0)
+    return screen(pageHeader(t('today.freeDay'), cap(fmt.long.format(now))), html`${weatherCard(now)}${tiles()}`);
 
   const day = days[index];
   const big = t('today.dayXofY', { x: day.n, y: days.length });
   if (isSecret(day))
-    return html`${hello(big, cap(fmt.long.format(day.when)))}${hiddenNote(day)}${weatherCard(day.when, day.weather)}${tiles()}`;
-  return html`${hello(big, `${tr(day.title)} · ${cap(fmt.long.format(day.when))}`)}${hiddenNote(day)}
+    return screen(
+      pageHeader(big, cap(fmt.long.format(day.when))),
+      html`${hiddenNote(day)}${weatherCard(day.when, day.weather)}${tiles()}`,
+    );
+  return screen(
+    pageHeader(big, `${tr(day.title)} · ${cap(fmt.long.format(day.when))}`),
+    html`${hiddenNote(day)}
     ${nextSign(day)}${weatherCard(day.when, day.weather)}${tiles()}${day.note ? noteBox(tr(day.note)) : ''}
-    <section class="section"><h2>${t('today.plan')}</h2>${timeline(day, true)}</section>`;
+    <section class="section"><h2>${t('today.plan')}</h2>${timeline(day, true)}</section>`,
+  );
 }
 
 /**
@@ -120,13 +129,16 @@ function dayZero(toStart) {
   const welcome = currentTrip().welcome;
   const count = toStart === 1 ? t('today.startsTomorrow') : t('today.startsIn', { count: toStart });
   const range = `${fmt.short.format(first.when)} – ${fmt.short.format(last.when)}`;
-  return html`${hello(t('today.greeting'), range)}
+  return screen(
+    pageHeader(t('today.greeting'), range),
+    html`
     <section class="sign"><div class="sign-head"><span class="sign-tag">${t('today.dayZero')}</span><span>${cap(fmt.long.format(first.when))}</span></div>
       <h2 class="sign-title">${count}</h2></section>
     ${weatherToday()}${welcome ? noteBox(tr(welcome)) : ''}${tiles()}
     <section class="section"><h2>${t('today.firstDay')}</h2>${dayCard(first, 0)}${weatherCard(first.when, first.weather)}</section>
     <button class="btn" type="button" data-action="tab" data-arg="lists" style="align-self:flex-start">${icon('check')}${t('today.openPacking')}</button>
-    ${days.length > 1 ? html`<section class="section"><h2>${t('today.nextDays')}</h2><ol class="days">${days.slice(1).map((day, i) => html`<li>${dayCard(day, i + 1)}</li>`)}</ol></section>` : ''}`;
+    ${days.length > 1 ? html`<section class="section"><h2>${t('today.nextDays')}</h2><ol class="days">${days.slice(1).map((day, i) => html`<li>${dayCard(day, i + 1)}</li>`)}</ol></section>` : ''}`,
+  );
 }
 
 function days() {
@@ -134,19 +146,30 @@ function days() {
   if (state.dayOpen != null) {
     const day = all[state.dayOpen];
     const secret = isSecret(day);
-    return html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('days.back')}</span></button>
-      ${hello(secret ? t('day.hidden') : tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }))}${hiddenNote(day)}
-      ${weatherCard(day.when, day.weather)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, tripToday()) === 0)}`}`;
+    return screen(
+      pageHeader(secret ? t('day.hidden') : tr(day.title), cap(fmt.long.format(day.when)), t('day.n', { n: day.n }), {
+        back: t('days.back'),
+      }),
+      html`${hiddenNote(day)}
+      ${weatherCard(day.when, day.weather)}${secret ? '' : html`${day.note ? noteBox(tr(day.note)) : ''}${timeline(day, daysBetween(day.when, tripToday()) === 0)}`}`,
+    );
   }
   const range = `${fmt.short.format(all[0].when)} – ${fmt.short.format(all[all.length - 1].when)}`;
-  return html`${hello(t('days.title'), range)}<ol class="days">${all.map((day, i) => html`<li>${dayCard(day, i)}</li>`)}</ol>`;
+  return screen(
+    pageHeader(t('days.title'), range),
+    html`<ol class="days">${all.map((day, i) => html`<li>${dayCard(day, i)}</li>`)}</ol>`,
+  );
 }
 
 function lists() {
-  return html`${hello(t('lists.title'), '')}<div class="stack">${currentTrip().lists.map((list) => {
-    const done = ticked(list.id);
-    return html`<section class="card list">
-      <div class="list-head"><h2>${tr(list.title)}</h2><span class="count" id="count-${list.id}">${t('lists.count', listCount(list))}</span></div>
+  return screen(
+    pageHeader(t('lists.title'), ''),
+    html`<div class="stack">${currentTrip().lists.map((list) => {
+      const done = ticked(list.id);
+      return fold(
+        'list:' + list.id,
+        tr(list.title),
+        html`<div class="list-body">
       <ul class="checks">${list.items.map(
         (item, j) => html`<li><label class="check" for="c-${list.id}-${j}">
         <input type="checkbox" id="c-${list.id}-${j}" data-list="${list.id}" data-item="${j}"${done.includes(j) ? html` checked` : ''}><span>${tr(item)}</span></label></li>`,
@@ -158,20 +181,26 @@ function lists() {
       <form class="add-item" data-add-item="${list.id}" novalidate>
         <input name="text" maxlength="200" enterkeyhint="done" autocomplete="off" aria-label="${t('lists.addLabel', { list: tr(list.title) })}" placeholder="${t('lists.addPlaceholder')}">
         <button class="btn" type="submit">${icon('plus')}<span>${t('lists.add')}</span></button></form>
-      <button class="btn btn--quiet" type="button" data-action="reset-list" data-arg="${list.id}">${t('lists.reset')}</button></section>`;
-  })}</div>`;
+      <button class="btn btn--quiet" type="button" data-action="reset-list" data-arg="${list.id}">${t('lists.reset')}</button></div>`,
+        { open: true, count: t('lists.count', listCount(list)), countId: 'count-' + list.id },
+      );
+    })}</div>`,
+  );
 }
 
 function phrases() {
   const speechLang = state.settings.speechLang;
-  return html`${hello(t('phrases.title'), t('phrases.sub'))}<div class="stack">${currentTrip().phrases.map(
-    (p, i) => html`<article class="card phrase">
+  return screen(
+    pageHeader(t('phrases.title'), t('phrases.sub')),
+    html`<div class="stack">${currentTrip().phrases.map(
+      (p, i) => html`<article class="card phrase">
     <p class="ph-mean">${tr(p.meaning)}</p>
     <p class="ph-local" lang="${speechLang}">${p.local}</p>
     <p class="ph-say">${tr(p.say)}</p>
     <div class="actions">${canSpeak() ? html`<button class="btn" type="button" data-action="say" data-arg="${p.local}">${icon('vol')}${t('action.hear')}</button>` : ''}
       <button class="btn" type="button" data-action="phrase" data-arg="${i}">${icon('max')}${t('action.show')}</button></div></article>`,
-  )}</div>`;
+    )}</div>`,
+  );
 }
 
 function help() {
@@ -181,7 +210,9 @@ function help() {
   const hotel = trip.places[hotelId];
   const ins = h.insurance;
   const con = h.consulate;
-  return html`${hello(t('help.title'), '')}
+  return screen(
+    pageHeader(t('help.title'), ''),
+    html`
   <section class="card sos">
     <p class="sos-label">${t('help.emergency')}</p>
     <a class="sos-num" href="${telUrl(h.emergency)}">${icon('phone')}<span>${h.emergency}</span></a>
@@ -210,7 +241,8 @@ function help() {
   }
   <section class="section"><h2>${t('help.phone')}</h2><div class="card info">
     <p class="muted">${t('help.forgetNote')}</p>
-    <div class="actions"><button class="btn btn--quiet" type="button" data-action="forget">${icon('lock')}<span>${t('help.forget')}</span></button></div></div></section>`;
+    <div class="actions"><button class="btn btn--quiet" type="button" data-action="forget">${icon('lock')}<span>${t('help.forget')}</span></button></div></div></section>`,
+  );
 }
 
 /** The five tabs. */

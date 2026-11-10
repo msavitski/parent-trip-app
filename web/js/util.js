@@ -165,3 +165,16 @@ export async function keepAwake(on) {
     wake = null;
   }
 }
+
+/**
+ * Make the textareas under `root` as tall as their text, so a long note never scrolls inside its own small box
+ * (the JSON editor keeps its fixed size). Ones that are not drawn (in a closed section) are left for when they open.
+ * @param {ParentNode} [root]
+ */
+export function fitTextareas(root = document) {
+  for (const box of root.querySelectorAll('textarea:not(.json)')) {
+    if (!(box instanceof HTMLTextAreaElement) || !box.offsetParent) continue;
+    box.style.height = 'auto';
+    box.style.height = `${box.scrollHeight + box.offsetHeight - box.clientHeight}px`;
+  }
+}

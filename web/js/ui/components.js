@@ -3,12 +3,13 @@
  *
  * @import { Event, Place, Weather } from '../../../types/trip'
  * @import { TripDay, WeatherDay } from '../../../types/app'
+ * @import { Html } from '../html.js'
  */
 import { html, icon } from '../html.js';
 import { fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { currentHotelId, currentTrip, daysBetween, nowMin, ticketsOf, toMin, tripToday } from '../trip.js';
-import { dirUrl, mapUrl, telUrl } from '../util.js';
+import { dirUrl, mapUrl, store, telUrl } from '../util.js';
 import {
   hasWeather,
   outfit,
@@ -20,16 +21,66 @@ import {
 } from '../weather.js';
 
 /**
- * Screen header: small eyebrow line, big title, optional subtitle.
- * @param {string} big
- * @param {string} [sub]
- * @param {string} [eyebrow]  defaults to the trip's title
+ * A screen: its header, which stays where it is, and its body, which scrolls under it. The app shell (app.js)
+ * draws the two in different places; every screen, sheet and editor screen is built with this.
+ * @typedef {{ head: Html, body: Html }} Screen
+ * @param {Html} head  from pageHeader()
+ * @param {Html} body
+ * @returns {Screen}
  */
-export function hello(big, sub, eyebrow) {
-  return html`<header class="hello">
+export const screen = (head, body) => ({ head, body });
+
+/**
+ * The header of a screen: a small eyebrow line, the title, an optional subtitle. A screen that opens over another
+ * (a day, a sheet, an editor screen) has its Back button at the right end of the same row, and its action (Save)
+ * just before it: the title starts at the same place on every screen and never shifts when a button appears.
+ * @param {string} big
+ * @param {string} [sub]  the line under the title; when there is none the line is still kept, empty, so that the header
+ *   is the same height on every screen and nothing below it moves when the screen changes
+ * @param {string} [eyebrow]  defaults to the trip's title
+ * @param {{ back?: string, backIcon?: string, action?: Html, after?: Html }} [options]
+ *   back: the Back button's label (it is drawn as an icon, backIcon: 'left' or 'x'); action: a button at the end of
+ *   the row (Save); after: under the row (an error)
+ */
+export function pageHeader(big, sub, eyebrow, { back, backIcon = 'left', action, after } = {}) {
+  return html`<div class="head"><div class="head-row">
+    <div class="head-text">
     <p class="eyebrow"><span>${eyebrow ?? tr(currentTrip().title)}</span>${state.settings.demoTodayIsDay ? html`<span class="demo">${t('badge.demo')}</span>` : ''}</p>
-    <h1 class="big">${big}</h1>${sub ? html`<p class="date">${sub}</p>` : ''}</header>`;
+    <h1 class="big">${big}</h1><p class="date">${sub || '\u00a0'}</p></div>${action ? html`<div class="head-actions">${action}</div>` : ''}${
+      back
+        ? html`<button class="back" type="button" data-action="back" aria-label="${back}" title="${back}">${icon(backIcon)}</button>`
+        : ''
+    }</div>${after ?? ''}</div>`;
 }
+
+/**
+ * Which collapsible sections are open or closed. Kept on the phone: a section closed once stays closed, the next
+ * time and on the next screen that has it.
+ * @type {Record<string, boolean>}
+ */
+const folds = store.get('folds', {});
+
+/** A section was opened or closed: remember it. @param {HTMLDetailsElement} el */
+export function rememberFold(el) {
+  if (!el.dataset.fold) return;
+  folds[el.dataset.fold] = el.open;
+  store.set('folds', folds);
+}
+
+/**
+ * A card that collapses to its heading (a list, a section of the Edit tab), so a long screen can be shortened to the
+ * part being used.
+ * @param {string} id  what rememberFold keeps it under
+ * @param {string} title
+ * @param {Html} body
+ * @param {{ open?: boolean, count?: string | number, countId?: string, list?: boolean }} [options]
+ *   open: whether it starts open, until the person has chosen; count: a small number or text after the heading (and
+ *   countId, an id for it, when something updates it); list: the body is rows (they sit in the card, divided by lines)
+ */
+export const fold = (id, title, body, { open = false, count, countId, list = false } = {}) =>
+  html`<details class="fold${list ? ' fold--list' : ''}" data-fold="${id}"${(folds[id] ?? open) ? html` open` : ''}><summary><h2>${title}</h2>${
+    count === undefined ? '' : html`<span class="fold-count"${countId ? html` id="${countId}"` : ''}>${count}</span>`
+  }${icon('chev', 'ic chev')}</summary><div class="fold-body">${body}</div></details>`;
 
 /** @param {string} text */
 export const noteBox = (text) => html`<p class="note">${icon('info')}<span>${text}</span></p>`;
@@ -172,9 +223,8 @@ export const person = (name, sub, phone) => html`<div class="card person">
   <div class="person-main"><p class="person-name">${name}</p>${sub ? html`<p class="muted">${sub}</p>` : ''}<p class="mono">${phone}</p></div>
   <a class="btn btn--solid" href="${telUrl(phone)}">${icon('phone')}${t('action.call')}</a></div>`;
 
-/** Title row of a full-screen sheet with the Close button. @param {string} title */
-export const sheetHead = (title) => html`<div class="sheet-top"><h2 class="sheet-title">${title}</h2>
-  <button class="close" type="button" data-action="back">${icon('x')}<span>${t('action.close')}</span></button></div>`;
+/** The header of a full-screen sheet: the same as any page's, with a Close button (the Back button, drawn as a cross). @param {string} title */
+export const sheetHeader = (title) => pageHeader(title, '', undefined, { back: t('action.close'), backIcon: 'x' });
 
 /* ---------- weather ---------- */
 

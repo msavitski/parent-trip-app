@@ -14,16 +14,38 @@ import { state } from './state.js';
 import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
 import { KEEP_AWAKE, listenPinch, renderSheet } from './ui/sheets.js';
-import { keepAwake, stopSpeaking } from './util.js';
+import { fitTextareas, keepAwake, stopSpeaking } from './util.js';
 import { fetchEnc } from './vault.js';
 import { updateWeather } from './weather.js';
 
 /** @param {string} id */
 const byId = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
+// The shell (index.html): the header, the one area that scrolls, the tab bar, and the sheet with the same parts.
+const bar = byId('bar');
+const page = byId('page');
 const view = byId('view');
-const sheetEl = byId('sheet');
-listenPinch(sheetEl);
 const tabsEl = byId('tabs');
+const sheetEl = byId('sheet');
+const sheetBar = byId('sheet-bar');
+const sheetPage = byId('sheet-page');
+const sheetView = byId('sheet-view');
+listenPinch(sheetEl);
+
+/** Back to the top of the page (a new screen opens at its top). */
+export const scrollToTop = () => {
+  page.scrollTop = 0;
+};
+
+/**
+ * Draw a screen: the header in the bar, the body in the scrolling area.
+ * @param {import('./ui/components.js').Screen} screen
+ */
+function showPage({ head, body }) {
+  mount(bar, head);
+  bar.hidden = false;
+  mount(view, body);
+  fitTextareas(view);
+}
 
 /** @type {[Tab, string][]} tab and its icon */
 const TABS = [
@@ -49,10 +71,10 @@ export function render() {
     const screen = state.tab === 'edit' ? editScreen() : SCREENS[state.tab]();
     // admin: a GitHub token that is about to expire is the first thing on Today and on the Edit tab's overview
     const alert = state.tab === 'today' || (state.tab === 'edit' && !state.edit.length) ? tokenAlert() : '';
-    mount(view, alert ? html`${alert}${screen}` : screen);
+    showPage(alert ? { head: screen.head, body: html`${alert}${screen.body}` } : screen);
   } catch (error) {
     console.error(error);
-    mount(view, messageScreen('error.generic', true));
+    showScreen(messageScreen('error.generic', true));
   }
   for (const b of tabsEl.querySelectorAll('[data-action="tab"]')) {
     b.setAttribute('aria-current', b.getAttribute('data-arg') === state.tab ? 'page' : 'false');
@@ -66,6 +88,7 @@ export function render() {
  */
 export function showScreen(content) {
   tabsEl.hidden = true;
+  bar.hidden = true;
   mount(view, content);
 }
 
@@ -108,11 +131,11 @@ function stepBack() {
   } else if (state.tab === 'edit' && state.edit.length) {
     state.edit.pop();
     render();
-    window.scrollTo(0, 0);
+    scrollToTop();
   } else if (state.dayOpen != null) {
     state.dayOpen = null;
     render();
-    window.scrollTo(0, 0);
+    scrollToTop();
   }
 }
 
@@ -142,7 +165,7 @@ export function setTab(tab) {
   state.sheets.length = 0;
   showSheet();
   render();
-  window.scrollTo(0, 0);
+  scrollToTop();
 }
 
 /** Open a screen inside the Edit tab. @param {EditView} editView */
@@ -150,7 +173,7 @@ export function openEdit(editView) {
   state.edit.push(editView);
   pushNav();
   render();
-  window.scrollTo(0, 0);
+  scrollToTop();
 }
 
 /** Admin: make every screen show the edited trip (the next render draws it). */
@@ -164,7 +187,7 @@ export function openDay(index) {
   state.dayOpen = index;
   pushNav();
   render();
-  window.scrollTo(0, 0);
+  scrollToTop();
 }
 
 /* ---------- sheets ---------- */
@@ -177,7 +200,7 @@ export function openSheet(type, arg) {
   state.sheets.push({ type, arg });
   pushNav();
   showSheet();
-  sheetEl.scrollTop = 0;
+  sheetPage.scrollTop = 0;
 }
 
 /** Change what the top sheet shows (the taxi card's place). @param {string} arg */
@@ -186,7 +209,7 @@ export function retargetSheet(arg) {
   if (!top) return;
   top.arg = arg;
   showSheet();
-  sheetEl.scrollTop = 0;
+  sheetPage.scrollTop = 0;
 }
 
 /** Draw the top sheet, or hide the sheet layer when none is open. */
@@ -195,8 +218,8 @@ export function showSheet() {
   if (top?.type !== 'map') stopMap();
   if (!top) {
     sheetEl.hidden = true;
-    sheetEl.innerHTML = '';
-    document.documentElement.classList.remove('locked');
+    sheetBar.innerHTML = '';
+    sheetView.innerHTML = '';
     keepAwake(false);
     stopSpeaking();
     // catch up with the clock, on the screens that show it: re-drawing the Edit tab here would wipe an open form
@@ -205,18 +228,19 @@ export function showSheet() {
   }
   try {
     sheetEl.className = 'sheet sheet--' + top.type;
-    mount(sheetEl, renderSheet(top));
+    const { head, body } = renderSheet(top);
+    mount(sheetBar, head);
+    mount(sheetView, body);
   } catch (error) {
     console.error(error);
     state.sheets.length = 0;
     showSheet();
-    mount(view, messageScreen('error.generic', true));
+    showScreen(messageScreen('error.generic', true));
     return;
   }
   sheetEl.hidden = false;
-  document.documentElement.classList.add('locked');
   keepAwake(KEEP_AWAKE.includes(top.type));
-  sheetEl.querySelector(/** @type {'button'} */ ('button.close'))?.focus({ preventScroll: true });
+  sheetBar.querySelector('button')?.focus({ preventScroll: true });
   if (top.type === 'map') startMap();
 }
 

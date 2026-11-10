@@ -8,12 +8,18 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* No pinch zoom of the page: the header and the tab bar stay exactly where they are. The ticket zooms its own
+     picture (sheets.js) and the map zooms itself. The scrolling areas (.page) say the same for what is inside them. */
+  touch-action: pan-x pan-y;
 }
-html.locked {
+html,
+body {
+  height: 100%;
+  margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 body {
-  margin: 0;
   background: var(--bg);
   color: var(--ink);
   font: 400 1.1875rem/1.45 var(--f-text);
@@ -65,24 +71,68 @@ a {
   color: var(--muted);
 }
 
-.wrap {
-  max-width: 40rem;
-  margin-inline: auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 20px calc(var(--tabbar) + 32px + env(safe-area-inset-bottom, 0px));
+/* The app shell (index.html): the header (.bar) and the tab bar stay where they are, and the one area between them
+   (.page) scrolls. A sheet covers the header and the page with the same two parts of its own. */
+:root {
+  --col: 40rem; /* the width of the column of text; wider screens widen it (see the media queries at the end) */
 }
-#view {
+.app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template: auto minmax(0, 1fr) auto / minmax(0, 1fr);
+  background: var(--bg);
+}
+/* every part says which row it is in: a sheet shares the first two, so leaving it to auto-placement moves the rest */
+.app > .bar {
+  grid-area: 1 / 1;
+}
+.app > .page {
+  grid-area: 2 / 1;
+}
+.app > .tabs {
+  grid-area: 3 / 1;
+}
+.bar {
+  /* the same room for a scrollbar as the page below has, so the header lines up with the content */
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+  padding-top: env(safe-area-inset-top, 0px);
+  /* a line under it, so it reads as a header and content doesn't just stop at its edge; drawn in the screen's own
+     ink, because a sheet can be any colour (taxi sign, ticket paper) */
+  border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+.page {
+  overflow-y: auto;
+  /* room for the scrollbar is always kept: where scrollbars take room (a laptop), a page that grows past the screen
+     (a section opened) would otherwise get narrower, and one that shrinks (a section closed) wider */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+/* a column of content (and of the header above it), centred, with the phone's safe areas as its margins */
+.wrap,
+.head {
+  width: 100%;
+  max-width: var(--col);
+  margin-inline: auto;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-block: 16px 12px;
+}
+/* a flex item is as wide as its widest content unless it may shrink: a long word made a whole page scroll sideways */
+.wrap > * {
+  min-width: 0;
 }
 .section {
   display: grid;
   gap: 12px;
 }
-.section > h2,
-.list-head h2 {
+.section > h2 {
   font-size: 1.375rem;
   font-weight: 800;
   line-height: 1.2;
@@ -90,6 +140,7 @@ a {
 }
 .stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 .card {
@@ -100,10 +151,6 @@ a {
 }
 
 /* header */
-.hello {
-  display: grid;
-  gap: 4px;
-}
 .eyebrow {
   display: flex;
   flex-wrap: wrap;
@@ -133,17 +180,67 @@ a {
   font-size: 1.1875rem;
   color: var(--muted);
 }
-.back {
-  display: inline-flex;
+
+/* The header of a screen: Back, the title and an action (Save) in one row. Same on every page, sheet and editor screen. */
+.head {
+  padding-block: 12px 10px;
+}
+.head-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  min-height: 3rem;
-  padding: 6px 18px 6px 10px;
-  border-radius: 999px;
-  border: 2px solid var(--line);
-  background: var(--surface);
-  font-weight: 700;
+  gap: 12px;
+}
+.head-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.head .big {
+  font-size: 1.875rem;
+}
+.head .date {
+  font-size: 1.0625rem;
+}
+.head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.head .btn {
+  flex: none;
+}
+/* the title is at most two lines and the subtitle one, so a long name never makes the header tall */
+.head .big {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.head .date {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.head .form-err {
+  margin-top: 10px;
+  /* a long message (invalid JSON) scrolls inside itself instead of making the pinned header tall */
+  max-height: 4.5rem;
+  overflow-y: auto;
+}
+.back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: transparent;
+  color: inherit;
 }
 
 /* buttons */
@@ -171,6 +268,21 @@ a {
 .btn .ic {
   width: 1.375rem;
   height: 1.375rem;
+}
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.btn[aria-busy='true'] .ic {
+  animation: spin 1s linear infinite;
+}
+.btn--round {
+  width: 3rem;
+  height: 3rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
 }
 .btn--solid {
   background: var(--accent);
@@ -327,7 +439,7 @@ a {
   overflow-wrap: anywhere;
 }
 /* the same for the other blocks of free text */
-.hello,
+.head,
 .ev-body,
 .tk-main,
 .person-main,
@@ -741,21 +853,11 @@ a {
   color: var(--muted);
 }
 
-/* checklists */
-.list {
+/* checklists: a list is a collapsible card (.fold) */
+.list-body {
   display: grid;
-  gap: 8px;
-}
-.list-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-}
-.count {
-  font: 700 1rem var(--f-mono);
-  color: var(--muted);
-  white-space: nowrap;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 .checks {
   list-style: none;
@@ -840,6 +942,7 @@ a {
 }
 .add-item input {
   flex: 1;
+  width: 0;
   min-width: 0;
   min-height: 3rem;
   padding: 10px 12px;
@@ -965,11 +1068,6 @@ a {
 
 /* tab bar */
 .tabs {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
   display: grid;
   /* 5 tabs, 6 for the admin (set by app.js) */
   grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 7.5rem));
@@ -1021,66 +1119,29 @@ a {
   color: var(--danger);
 }
 
-/* full-screen sheets: they stop above the tab bar, which stays on screen (a tap on a tab closes the sheet) */
+/* full-screen sheets: over the header and the page, not the tab bar (a tap on a tab closes the sheet) */
 .sheet {
-  position: fixed;
-  inset: 0 0 calc(var(--tabbar) + 1px + env(safe-area-inset-bottom, 0px));
+  grid-area: 1 / 1 / 3 / 2;
   z-index: 20;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   display: grid;
-  /* one column exactly as wide as the screen: without this it grew to fit the widest thing inside (a search box) */
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: 18px;
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr);
   background: var(--bg);
   color: var(--ink);
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
-  padding-bottom: 32px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  --col: 40rem;
 }
-.sheet > * {
-  width: 100%;
-  max-width: 40rem;
-  margin-inline: auto;
-}
-.sheet--tickets > * {
-  max-width: 60rem;
+.sheet--tickets {
+  --col: 60rem;
 }
 @media (prefers-reduced-motion: no-preference) {
   .sheet:not([hidden]) {
-    animation: rise 0.18s ease-out;
+    animation: rise 0.12s ease-out;
   }
 }
+/* a fade, not a slide: a slide moves the header too, and it looks like the screen jumps */
 @keyframes rise {
   from {
-    transform: translateY(14px);
+    opacity: 0;
   }
-}
-.sheet-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.sheet-title {
-  min-width: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.close {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 3.25rem;
-  padding: 6px 18px 6px 12px;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-  background: transparent;
-  font-weight: 800;
 }
 .sub {
   font-size: 1.125rem;
@@ -1244,23 +1305,18 @@ a {
   image-rendering: pixelated;
   background: var(--paper);
 }
-/* floats at the bottom of the screen while a tall document scrolls under it (the sheet leaves room for it) */
-.sheet--ticket {
-  padding-bottom: 6.5rem;
-}
+/* Stays at the bottom of the sheet while a tall document scrolls under it. It is part of the sheet's content (not
+   fixed over it), so a ticket that fits the screen doesn't scroll for it. */
 .ticket-zoom {
-  position: fixed;
-  left: 50%;
-  translate: -50% 0;
-  /* above the tab bar */
-  bottom: calc(var(--tabbar) + 13px + env(safe-area-inset-bottom, 0px));
+  position: sticky;
+  bottom: 12px;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: max-content;
-  max-width: calc(100% - 32px);
+  max-width: 100%;
   padding: 8px 10px;
   border: 2px solid var(--paper-ink);
   border-radius: 999px;
@@ -1380,8 +1436,13 @@ a {
 /* admin: the Edit tab (only the admin password sees it) */
 .visually-hidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  /* !important: the form's input rule (full width, 3rem tall) is more specific, and a hidden file input that wide
+     stuck out of the screen and made the page scroll sideways */
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -1389,23 +1450,6 @@ a {
 .form {
   display: grid;
   gap: 18px;
-}
-/* Save and the error of a failed save: at the top, and it stays there while a long form scrolls */
-.form-bar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  margin: -16px -16px 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: var(--surface);
-}
-.form-bar .form-err {
-  justify-self: stretch;
 }
 .field {
   display: grid;
@@ -1428,7 +1472,9 @@ a {
   font: inherit;
 }
 .field textarea {
-  resize: vertical;
+  /* grows with its text (fitTextareas in util.js), so it never scrolls inside */
+  resize: none;
+  overflow-y: hidden;
 }
 .field input:focus,
 .field textarea:focus,
@@ -1546,56 +1592,6 @@ a {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-/* a collapsible section of the Edit tab: the heading is the button */
-.fold {
-  display: grid;
-  gap: 12px;
-}
-.fold > summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 3.5rem;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-.fold > summary::-webkit-details-marker {
-  display: none;
-}
-.fold > summary:active {
-  transform: scale(0.99);
-}
-.fold > summary h2 {
-  flex: 1;
-  min-width: 0;
-  font-size: 1.375rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.fold-count {
-  min-width: 1.75rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--muted);
-  font: 700 0.9375rem var(--f-mono);
-  text-align: center;
-}
-.fold > summary .chev {
-  transition: rotate 0.15s;
-}
-.fold[open] > summary .chev {
-  rotate: 90deg;
-}
-.fold-body {
-  display: grid;
-  gap: 12px;
-}
 .edit-row-ic {
   color: var(--accent);
 }
@@ -1631,6 +1627,136 @@ a {
 .eye:active {
   transform: scale(0.95);
 }
+/* A section of the Edit tab: one card, the heading is the button that folds it */
+.fold {
+  display: block;
+  overflow: clip;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 3.5rem;
+  padding: 8px 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fold > summary h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.fold > summary .chev {
+  transition: rotate 0.15s;
+}
+.fold[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.fold[open] > summary .chev {
+  rotate: 90deg;
+}
+.fold-count {
+  min-width: 1.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 700 0.9375rem var(--f-mono);
+  text-align: center;
+}
+.fold-body {
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+}
+/* a section of rows: they sit in the card, divided by lines, with "Add" as its last row */
+.fold--list > .fold-body {
+  gap: 0;
+  padding: 0;
+}
+.fold-note {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.fold--list .edit-list {
+  display: block;
+}
+.fold--list .edit-list > li + li {
+  border-top: 1px solid var(--line);
+}
+.fold--list .edit-row {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 16px 0 0;
+  gap: 0;
+}
+/* The date (or time and icon) is its own column, set apart from the name by a line: the eye finds the name without
+   reading through the date. */
+.fold--list .edit-row .mono {
+  align-self: stretch;
+  min-width: 6.5rem;
+  padding: 10px 14px 10px 16px;
+  border-right: 1px solid var(--line);
+}
+.fold--list .edit-row .mono:empty {
+  min-width: 0;
+  padding: 0 0 0 4px;
+  border: 0;
+}
+.fold--list .edit-row > span:nth-child(2) {
+  padding: 10px 12px 10px 14px;
+}
+.fold--list .edit-row .mono:empty + span {
+  padding-left: 12px;
+}
+.fold--list .edit-item {
+  gap: 0;
+}
+.fold--list .eye {
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.fold--list .edit-item--hidden .edit-row,
+.fold--list .eye[aria-pressed='false'] {
+  border-style: solid;
+}
+.edit-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 10px 16px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.edit-add:first-child {
+  border-top: 0;
+}
+.edit-add:active {
+  background: var(--bg);
+}
+.edit-del {
+  justify-self: start;
+}
 .field-check {
   display: flex;
   align-items: center;
@@ -1648,7 +1774,7 @@ a {
 }
 .json {
   width: 100%;
-  min-height: 60vh;
+  min-height: 50vh;
   padding: 12px;
   border: 2px solid var(--line);
   border-radius: 12px;
@@ -1790,8 +1916,8 @@ a {
 
 /* Wider screens (tablets, a laptop): a wider column, and lists in two columns. Phones are unchanged. */
 @media (min-width: 48rem) {
-  .wrap {
-    max-width: 56rem;
+  :root {
+    --col: 56rem;
   }
   .days,
   .stack {
@@ -1810,8 +1936,8 @@ a {
   }
 }
 @media (min-width: 72rem) {
-  .wrap {
-    max-width: 64rem;
+  :root {
+    --col: 64rem;
   }
 }
 

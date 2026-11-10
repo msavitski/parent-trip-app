@@ -6,7 +6,10 @@
          translation on a phone whose language differs from the page's static lang, even when the app already
          speaks the phone's language, and a translated page breaks the app's own texts. -->
     <meta name="google" content="notranslate" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <title>Our Trip</title>
     <meta name="theme-color" content="#1546C4" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -24,9 +27,17 @@
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <div class="wrap"><main id="view"></main></div>
-    <nav class="tabs" id="tabs" aria-label="Sections" hidden></nav>
-    <div class="sheet" id="sheet" role="dialog" hidden></div>
+    <!-- The app shell: a header that stays, one area that scrolls, a tab bar that stays. A sheet covers the header
+         and the scrolling area (not the tab bar) with the same three-part layout of its own. -->
+    <div class="app">
+      <header class="bar" id="bar" hidden></header>
+      <div class="page" id="page"><main class="wrap" id="view"></main></div>
+      <nav class="tabs" id="tabs" aria-label="Sections" hidden></nav>
+      <div class="sheet" id="sheet" role="dialog" hidden>
+        <header class="bar" id="sheet-bar"></header>
+        <div class="page" id="sheet-page"><div class="wrap" id="sheet-view"></div></div>
+      </div>
+    </div>
 
     <script>
       // If the app's modules don't load (a broken download, a very old browser), show a reload button
