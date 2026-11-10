@@ -29,6 +29,7 @@ export let fmt = makeFormats(locale);
 function makeFormats(loc) {
   return {
     long: new Intl.DateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long' }),
+    date: new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', year: 'numeric' }),
     short: new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short' }),
     weekday: new Intl.DateTimeFormat(loc, { weekday: 'short' }),
     month: new Intl.DateTimeFormat(loc, { month: 'short' }),

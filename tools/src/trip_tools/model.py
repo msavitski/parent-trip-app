@@ -18,7 +18,21 @@ KEY_PATTERN = r"^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$"
 KEY = re.compile(KEY_PATTERN)
 
 # Icons the app has for events (web/js/html.js); anything else would show a plain dot.
-EVENT_ICONS = ("plane", "car", "bed", "food", "coffee", "landmark", "ship", "bag", "walk", "moon", "suitcase")
+EVENT_ICONS = (
+    "plane",
+    "car",
+    "train",
+    "bus",
+    "bed",
+    "food",
+    "coffee",
+    "landmark",
+    "ship",
+    "bag",
+    "walk",
+    "moon",
+    "suitcase",
+)
 
 
 @dataclass(frozen=True)
@@ -140,6 +154,13 @@ class Day(Model):
     weather: Weather | None = Field(
         default=None,
         description="Where this day's forecast is for (a trip across cities); the trip's `weather` is the default.",
+    )
+    hotel: Id | None = Field(
+        default=None,
+        description=(
+            "A key of `places`: where the family sleeps from this day on, until a later day names another one. "
+            "The Way-to-hotel and taxi buttons and the Help page use it. Before the first one, `help.hotel` applies."
+        ),
     )
     events: list[Event]
 

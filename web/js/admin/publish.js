@@ -17,13 +17,11 @@ import { t } from '../i18n.js';
 import { state } from '../state.js';
 import { bigStore } from '../util.js';
 import { fromBase64, sealTrip } from '../vault.js';
+import { commitMessage, describeChanges } from './changes.js';
 import { dropUnusedEditorKeys, dropUnusedImages } from './draft.js';
-import { GitHubError, commit, readText } from './github.js';
+import { GitHubError, commit, readBranch } from './github.js';
 import { validate } from './validate.js';
 
-/** Commit messages (they are for the repositories' history, not for the app's screens). */
-const SITE_MESSAGE = 'Update the trip (published from the app)';
-const DATA_MESSAGE = 'Update the trip data (published from the app)';
 const TRIP_HEADER =
   '// Published from the Our Trip app (admin mode). Comments are not kept when the app publishes.\n' +
   '// Edit it like any trip.json5, then `trip build` (pull this repository first).\n';
@@ -110,9 +108,25 @@ export async function publish() {
   if (!config?.token || !config.site || !config.data) return { kind: 'error', text: t('edit.err.noToken') };
   if (navigator.onLine === false) return { kind: 'error', text: t('edit.err.offline') };
 
+  // Commit messages say what changed (they are for the repositories' history, not for the app's screens). The site
+  // repository is public, so its messages only name the kind of change; the private one gets names and texts.
+  const changes = describeChanges(original, draft);
+  const siteMessage = commitMessage(changes.map((c) => c.plain));
+  const dataMessage = commitMessage(
+    changes.map((c) => c.plain),
+    changes.map((c) => c.detail),
+    'Trip data: ',
+  );
+
   try {
-    const current = await readText(config, config.site);
-    if (current && JSON.parse(current).iv !== enc.iv) return { kind: 'error', text: t('edit.err.conflict') };
+    // Ask GitHub about both repositories at once: the site's head, with the trip.enc in it (is it still the one
+    // this app opened?), and meanwhile the private repository's head and files, which are only read (they are
+    // committed to after the site, below). Waiting for them one after another was most of the time Publish took.
+    const siteStart = readBranch(config, config.site, { listing: false, read: config.site.path });
+    const dataStart = readBranch(config, config.data);
+    dataStart.catch(() => {}); // its error, if any, is reported where it is used: after the site is published
+    const site = await siteStart;
+    if (site.file && JSON.parse(site.file).iv !== enc.iv) return { kind: 'error', text: t('edit.err.conflict') };
 
     const sealed = await sealTrip(draft, opened, enc);
     await commit(
@@ -120,7 +134,8 @@ export async function publish() {
       config.site.repo,
       config.site.branch,
       [{ path: config.site.path, content: JSON.stringify(sealed) }],
-      SITE_MESSAGE,
+      siteMessage,
+      siteStart,
     );
 
     // published: this is now the trip as it is online
@@ -139,7 +154,8 @@ export async function publish() {
         config.data.repo,
         config.data.branch,
         readableFiles(draft, original, config.data.path),
-        DATA_MESSAGE,
+        dataMessage,
+        dataStart,
       );
     } catch (error) {
       return { kind: 'warn', text: t('edit.publishedNoCopy', { error: describe(error) }) };

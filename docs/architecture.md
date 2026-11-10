@@ -24,27 +24,30 @@ compiling anything.
 
 ## Frontend modules (`web/js/`)
 
-| Module              | Responsibility                                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form) |
-| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline             |
-| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money inputs, login form          |
-| `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing         |
-| `html.js`           | `html` tagged template (escapes every value) and the icon set                                  |
-| `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats              |
-| `vault.js`          | `trip.enc`: fetch, derive key, decrypt (admin: merge the hidden days), seal, remember the key  |
-| `trip.js`           | Turn the payload into the current trip (demo day, sorted events, family's view); date helpers  |
-| `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                       |
-| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                           |
-| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header        |
-| `ui/screens.js`     | The five tabs, login and message screens                                                       |
-| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket, money, phrase                              |
-| `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft              |
-| `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device        |
-| `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed     |
-| `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language      |
-| `admin/publish.js`  | Publish: conflict check, re-encrypt with the same keys (`vault.sealTrip`), commit both repos   |
-| `admin/github.js`   | The few GitHub API calls: read a file, one commit with several files                           |
+| Module              | Responsibility                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| `main.js`           | Start-up: login language, download `trip.enc`, unlock (setup link → saved key → password form)     |
+| `app.js`            | Rendering, tab bar, sheets, the phone's Back button, refresh timer, online/offline                 |
+| `actions.js`        | What taps do: `data-action="…"` → named handler; checkboxes, money inputs, login form              |
+| `state.js`          | The one mutable state object (trip, days, language, tab, open sheets). Imports nothing             |
+| `html.js`           | `html` tagged template (escapes every value) and the icon set                                      |
+| `i18n.js`           | `t()` for UI words, `tr()` for trip words, plurals, language choice, date formats                  |
+| `vault.js`          | `trip.enc`: fetch, derive key, decrypt (admin: merge the hidden days), seal, remember the key      |
+| `trip.js`           | Turn the payload into the current trip (demo day, sorted events, family's view); date helpers      |
+| `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                           |
+| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                               |
+| `ui/components.js`  | Shared pieces: header, timeline, Next sign, tiles, day card, weather card, sheet header            |
+| `ui/screens.js`     | The five tabs, login and message screens                                                           |
+| `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket (with its zoom buttons), money, phrase          |
+| `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft                  |
+| `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device            |
+| `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed         |
+| `admin/map.js`      | The place form's "Choose on the map": Leaflet (`web/vendor/`) loaded only when opened              |
+| `admin/token.js`    | The warning before the GitHub token expires (Today, the Edit tab, a dot on its tab bar button)     |
+| `admin/validate.js` | Checks before publishing, plus a test drawing of every screen and sheet in every language          |
+| `admin/changes.js`  | What changed since the last publish, in words: the commit messages (names only in the private one) |
+| `admin/publish.js`  | Publish: conflict check, re-encrypt with the same keys (`vault.sealTrip`), commit both repos       |
+| `admin/github.js`   | The few GitHub API calls: read a branch, one commit with several files (calls run in parallel)     |
 
 Admin mode never changes how the family app works: the editor shows a draft (`state.draft`) on every tab until it is
 published, and a family password never gets the Edit tab. The forms turn typed text into translation keys: a key
@@ -70,7 +73,7 @@ Rules that keep it maintainable:
 | `our-trip-app-<hash>` | Every file in `web/` except `sw.js`, `trip.enc` | Installed all-or-nothing, cache-first |
 | `our-trip-data`       | `trip.enc`                                      | Network-first (3 s), then cache       |
 | `our-trip-fonts`      | Google Fonts                                    | Cache-first                           |
-| `our-trip-vendor`     | `vendor/` (pdf.js, admin mode only)             | Cache-first, on first use             |
+| `our-trip-vendor`     | `vendor/` (pdf.js, Leaflet; admin mode only)    | Cache-first, on first use             |
 
 The file list and `<hash>` are generated into `sw.js` by `trip precache` (CI checks they're current). Any change in
 `web/` changes `sw.js`, so phones download the new snapshot in the background. A phone never runs a mix of old and
@@ -86,6 +89,21 @@ return to the foreground.
 `pdf.min.mjs`, `pdf.worker.min.mjs` and `LICENSE` from the `pdfjs-dist` npm package, in a folder named after the
 version. To update it, copy those files into a new `vendor/pdfjs-<version>/`, point `PDFJS` in `admin/pdf.js` at it,
 delete the old folder and run `trip precache`.
+
+Leaflet (`vendor/leaflet-1.9.4/`: `leaflet.js`, `leaflet.css`, `LICENSE` from the `leaflet` npm package, about 160 KB,
+without its marker images: the map draws its own pin) is kept the same way and updated the same way (`LEAFLET` in
+`admin/map.js`). The map's tiles and searches come from OpenStreetMap, see [security](security.md).
+
+## Publishing: what takes the time
+
+Publish makes a handful of GitHub API calls, and every one is a round trip over the phone's connection (from a web
+page, GitHub also answers a "preflight" first for each new address). `github.js` therefore asks for what it can at
+the same time: the site's and the private repository's heads, the check of `trip.enc` at that very head, the blob
+uploads (a few at once; text goes as it is, not base64 inside base64). The private repository is read while the
+site is being committed to, and written only after the site succeeded. That is 10 calls that wait for each other,
+down from 17 in a row (0.0.7). After the commit, GitHub Actions deploys the site: a push that changes only
+`web/trip.enc` skips the code checks (`changes` job in `.github/workflows/site.yml`) and goes straight to deploy;
+the phones see the new trip once Pages serves it, a minute or so later.
 
 `activate` deletes only caches named `our-trip-*`: other sites on the same `github.io` origin keep theirs.
 

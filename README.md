@@ -62,7 +62,7 @@ then `npm run check`. The pre-commit hook checks both.
 | `trip build [--new-password] [--link URL] [--no-fetch]` | Check, then encrypt `private/` into `web/trip.enc`                          |
 | `trip password family`                                  | Change the family password (phones then ask for the new one)                |
 | `trip password admin`                                   | Add the admin password (the first time), or change it                       |
-| `trip admin [--show]`                                   | Store the GitHub token and repositories that admin mode publishes to        |
+| `trip admin [--show] [--token-expires DAY]`             | Store the GitHub token and repositories that admin mode publishes to        |
 | `trip link URL`                                         | Print a setup link that opens the app without typing the (family) password  |
 | `trip unpack --out DIR`                                 | Decrypt `web/trip.enc` back into an editable folder (if `private/` is lost) |
 | `trip serve [--port N] [--host 0.0.0.0] [--enc FILE]`   | Serve `web/` locally (`--enc` serves another trip file, e.g. a demo build)  |
@@ -84,6 +84,12 @@ the parents' phones get the update within a few minutes. See [security](docs/sec
 - **PDF tickets.** A ticket's file can be an image or a PDF (a boarding pass from the airline's email, say). The app
   draws the PDF's pages (up to 6, blank ones skipped, white margins trimmed) into one image, so the phones show it
   like any other ticket, offline. The first PDF needs the internet once, to load the PDF reader (pdf.js).
+- **Places on a map.** In a place's form, "Choose on the map" opens a map (OpenStreetMap): tap a spot or search, and
+  the address and name found there go into the form, where you can still change them by hand, or you can skip the
+  map and type the address as before. It needs the internet and OpenStreetMap sees what you search for
+  ([security](docs/security.md)).
+- **Tickets** show a picture with **+ / −** buttons (a big PDF ticket is readable zoomed in, and scrolls), and the
+  booking code is optional: a ticket can be just a picture or a PDF.
 - **Hidden days.** The eye next to each day in Edit hides it from the family: their phones show "Plan coming later"
   and the weather for that date, and leave out the tickets and places only hidden days use. Their plans are
   encrypted for the admin password only, so the family password can't decrypt them at all
@@ -103,7 +109,9 @@ One-time setup:
    repositories (the site, and the private repository with your trip data), permission **Contents: Read and write**,
    nothing else, and an expiry date shortly after the trip.
 3. Store it, encrypted, for admin mode: `trip admin`. The repositories are taken from `git remote` of this repo and
-   of `private/`; check them with `trip admin --show`.
+   of `private/`; check them with `trip admin --show`. It also asks GitHub when the token expires and saves that day:
+   the app then warns you (on Today and in the Edit tab) two weeks before, so make the next token and run
+   `trip admin` again in time. If GitHub can't be asked, give the day with `--token-expires 2026-12-01`.
 4. Commit and push `web/trip.enc`.
 5. On your phone, open the site and log in with the **admin** password.
 

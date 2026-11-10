@@ -117,7 +117,15 @@ export function forFamily(payload) {
   if (!days?.some((d) => d.hidden)) return payload;
   /** @param {boolean} hidden @param {'place' | 'ticket'} field */
   const usedBy = (hidden, field) =>
-    new Set(days.filter((d) => !!d.hidden === hidden).flatMap((d) => (d.events ?? []).flatMap((e) => e[field])));
+    new Set(
+      days
+        .filter((d) => !!d.hidden === hidden)
+        // the day's hotel counts as a place it uses
+        .flatMap((d) => [
+          ...(d.events ?? []).flatMap((e) => e[field]),
+          ...(field === 'place' && d.hotel ? [d.hotel] : []),
+        ]),
+    );
   /**
    * @template T
    * @param {Record<string, T>} all
@@ -154,6 +162,18 @@ export function forFamily(payload) {
     ),
     images: Object.fromEntries(Object.entries(payload.images ?? {}).filter(([path]) => !secret.has(path))),
   };
+}
+
+/**
+ * Where the family sleeps today: the hotel of the latest day up to today that names one (a day's `hotel` holds
+ * until a later day names another), else the trip's main hotel (`help.hotel`) - also before and after the trip.
+ * @returns {string}
+ */
+export function currentHotelId() {
+  const trip = currentTrip();
+  const now = tripToday();
+  const named = state.days.filter((d) => d.hotel && trip.places[d.hotel] && daysBetween(d.when, now) >= 0);
+  return named.length ? /** @type {string} */ (named[named.length - 1].hotel) : trip.help.hotel;
 }
 
 /**

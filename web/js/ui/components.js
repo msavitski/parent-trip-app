@@ -7,7 +7,7 @@
 import { html, icon } from '../html.js';
 import { fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
-import { currentTrip, daysBetween, nowMin, ticketsOf, toMin, tripToday } from '../trip.js';
+import { currentHotelId, currentTrip, daysBetween, nowMin, ticketsOf, toMin, tripToday } from '../trip.js';
 import { dirUrl, mapUrl, telUrl } from '../util.js';
 import { hasWeather, outfit, WEATHER_ICON, weatherFetchedAt, weatherFor, weatherKind } from '../weather.js';
 
@@ -41,6 +41,9 @@ function inText(minutes) {
   return t('time.in', { t: parts.join(' ') });
 }
 
+/** Up to this many tickets get a button each; an event with more gets one button that opens just those. */
+const TICKET_BUTTONS = 3;
+
 /** Map, Taxi and Ticket buttons of an event (one per ticket, named after it when there are several). @param {Event} e */
 function eventActions(e) {
   const trip = currentTrip();
@@ -53,11 +56,17 @@ function eventActions(e) {
     );
   }
   const tickets = ticketsOf(e).filter((id) => trip.tickets[id]);
-  for (const id of tickets) {
-    const label = tickets.length > 1 ? tr(trip.tickets[id].title) : t('action.ticket');
+  if (tickets.length > TICKET_BUTTONS) {
     buttons.push(
-      html`<button class="btn" type="button" data-action="ticket" data-arg="${id}">${icon('ticket')}${label}</button>`,
+      html`<button class="btn" type="button" data-action="tickets-of" data-arg="${tickets.join(',')}">${icon('ticket')}${t('action.ticketsMany', { n: tickets.length })}</button>`,
     );
+  } else {
+    for (const id of tickets) {
+      const label = tickets.length > 1 ? tr(trip.tickets[id].title) : t('action.ticket');
+      buttons.push(
+        html`<button class="btn" type="button" data-action="ticket" data-arg="${id}">${icon('ticket')}${label}</button>`,
+      );
+    }
   }
   return buttons.length ? html`<div class="actions">${buttons}</div>` : '';
 }
@@ -113,10 +122,11 @@ export function nextSign(day) {
 export function tiles() {
   const trip = currentTrip();
   const family = trip.help.family[0];
-  const hotel = trip.places[trip.help.hotel];
+  const hotelId = currentHotelId();
+  const hotel = trip.places[hotelId];
   return html`<div class="tiles">
     <a class="tile" href="${telUrl(family.phone)}">${icon('phone')}<span>${t('tile.call', { name: family.name })}<small>${family.phone}</small></span></a>
-    <button class="tile" type="button" data-action="taxi" data-arg="${trip.help.hotel}">${icon('car')}<span>${t('tile.taxi')}<small>${t('tile.taxi.sub')}</small></span></button>
+    <button class="tile" type="button" data-action="taxi" data-arg="${hotelId}">${icon('car')}<span>${t('tile.taxi')}<small>${t('tile.taxi.sub')}</small></span></button>
     <a class="tile" href="${dirUrl(hotel)}" target="_blank" rel="noopener">${icon('nav')}<span>${t('tile.hotel')}<small>${t('tile.hotel.sub')}</small></span></a>
     <button class="tile" type="button" data-action="open" data-arg="tickets">${icon('ticket')}<span>${t('tile.tickets')}<small>${t('tile.tickets.sub', { count: Object.keys(trip.tickets).length })}</small></span></button>
     <button class="tile" type="button" data-action="open" data-arg="money">${icon('coins')}<span>${t('tile.money')}<small>${tr(trip.money.pair)}</small></span></button>

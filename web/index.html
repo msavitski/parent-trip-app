@@ -1,7 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="utf-8" />
+    <!-- The app translates itself (locales/, the language buttons). Without this, Chrome offers its own page
+         translation on a phone whose language differs from the page's static lang, even when the app already
+         speaks the phone's language, and a translated page breaks the app's own texts. -->
+    <meta name="google" content="notranslate" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Our Trip</title>
     <meta name="theme-color" content="#1546C4" />

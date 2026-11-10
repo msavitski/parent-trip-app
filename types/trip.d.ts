@@ -135,6 +135,10 @@ export interface Day {
    * Where this day's forecast is for (a trip across cities); the trip's `weather` is the default.
    */
   weather?: Weather | null;
+  /**
+   * A key of `places`: where the family sleeps from this day on, until a later day names another one. The Way-to-hotel and taxi buttons and the Help page use it. Before the first one, `help.hotel` applies.
+   */
+  hotel?: string | null;
   events: Event[];
 }
 /**
@@ -146,7 +150,20 @@ export interface Event {
    * 24-hour local time, e.g. 09:45
    */
   time: string;
-  icon: "plane" | "car" | "bed" | "food" | "coffee" | "landmark" | "ship" | "bag" | "walk" | "moon" | "suitcase";
+  icon:
+    | "plane"
+    | "car"
+    | "train"
+    | "bus"
+    | "bed"
+    | "food"
+    | "coffee"
+    | "landmark"
+    | "ship"
+    | "bag"
+    | "walk"
+    | "moon"
+    | "suitcase";
   /**
    * A translation key ("d1.title") or a key with values for its placeholders (["meet.lobbyAt", {"time": "09:45"}]).
    */

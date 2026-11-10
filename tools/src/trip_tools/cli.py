@@ -22,6 +22,8 @@ import json
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -284,6 +286,8 @@ def _print_admin(config: dict[str, Any]) -> None:
     site, data = config.get("site", {}), config.get("data", {})
     print("GitHub settings in trip.enc (only the admin password opens them):")
     print(f"  token        {_mask(config['token']) if config.get('token') else '(not set)'}")
+    expires = config.get("tokenExpires") or "(not known: the app can't warn before it expires)"
+    print(f"  token ends   {expires}")
     print(f"  site         {site.get('repo', '?')}  branch {site.get('branch', '?')}  file {site.get('path', '?')}")
     folder = data.get("path") or "(root)"
     print(f"  trip data    {data.get('repo', '?')}  branch {data.get('branch', '?')}  folder {folder}")
@@ -292,6 +296,37 @@ def _print_admin(config: dict[str, Any]) -> None:
 
 
 DEFAULT_API = "https://api.github.com"
+EXPIRES_HEADER = "github-authentication-token-expiration"
+ISO_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _token_expiry(token: str, api: str, repo: str) -> tuple[str | None, str]:
+    """The day GitHub says the token stops working, as "2026-12-01", and a line saying how that went.
+
+    GitHub puts the day in a header of every answer to a call made with a fine-grained token. A browser can't read
+    that header (GitHub doesn't expose it to web pages), so it is asked here and kept with the token, in trip.enc:
+    the app warns the admin from that date. No day comes back for a token that doesn't expire, or without internet.
+    """
+    request = urllib.request.Request(
+        f"{api}/repos/{repo}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "trip-tools",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            header = response.headers.get(EXPIRES_HEADER)
+    except urllib.error.HTTPError as error:
+        return None, f"GitHub refused the token for {repo} (error {error.code}): check the token and its access."
+    except (urllib.error.URLError, OSError, ValueError):
+        return None, "Couldn't reach GitHub to ask when the token expires. Give it with --token-expires YYYY-MM-DD."
+    match = re.match(r"\d{4}-\d{2}-\d{2}", header or "")
+    if not match:
+        return None, "GitHub sent no expiry day: this token doesn't expire (or isn't a fine-grained one)."
+    return match.group(0), f"The token expires on {match.group(0)}: the app will warn you two weeks before."
 
 
 def cmd_admin(project: Project, args: argparse.Namespace) -> None:
@@ -328,6 +363,22 @@ def cmd_admin(project: Project, args: argparse.Namespace) -> None:
     elif not config.get("token"):
         raise Fail("No token given. Nothing was changed.")
     config.update(site=site, data=data, api=args.api or config.get("api", DEFAULT_API))
+
+    # when the token stops working: given, or asked from GitHub (the app warns the admin before that day)
+    if args.token_expires:
+        if not ISO_DAY.match(args.token_expires):
+            raise Fail("--token-expires needs a day like 2026-12-01.")
+        expires, note = (
+            args.token_expires,
+            f"The token expires on {args.token_expires}: the app will warn you two weeks before.",
+        )
+    else:
+        expires, note = _token_expiry(config["token"], config["api"], site["repo"])
+    if expires:
+        config["tokenExpires"] = expires
+    else:
+        config.pop("tokenExpires", None)
+    print(note)
 
     vault.set_admin_config(opened, config).save(path)
     _print_admin(config)
@@ -398,6 +449,11 @@ def parser() -> argparse.ArgumentParser:
     )
     s.add_argument("--data-branch", help="its branch (default: private/'s current branch)")
     s.add_argument("--api", help=f"GitHub API address (default: {DEFAULT_API}; for testing)")
+    s.add_argument(
+        "--token-expires",
+        metavar="YYYY-MM-DD",
+        help="the day the token expires, if GitHub can't be asked (it is asked by default)",
+    )
     s.set_defaults(func=cmd_admin)
 
     s = sub.add_parser("link", help="print a setup link that opens the app without typing the password")

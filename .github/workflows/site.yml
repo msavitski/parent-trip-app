@@ -12,7 +12,32 @@ permissions:
   contents: read
 
 jobs:
+  # Publishing from the app commits only web/trip.enc. Nothing in it can break the code checks below (installing
+  # Python and Node and running every check took minutes), so a push that changes nothing else goes straight to deploy.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          code=true
+          if [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+            if [ "$changed" = "web/trip.enc" ]; then code=false; fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code changed: $code"
+
   check:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,8 +66,9 @@ jobs:
         run: npm run types && git diff --exit-code types/trip.d.ts
 
   deploy:
-    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-    needs: check
+    # runs when the checks passed, or were skipped because only the trip changed (but not when they failed)
+    if: ${{ !cancelled() && !failure() && github.ref == 'refs/heads/master' && github.event_name != 'pull_request' }}
+    needs: [changes, check]
     runs-on: ubuntu-latest
     permissions:
       pages: write
