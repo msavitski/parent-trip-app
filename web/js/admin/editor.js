@@ -29,6 +29,21 @@ const langName = (lang) => meta(lang, 'meta.name') || lang;
 /* ---------- pieces ---------- */
 
 /**
+ * For fields that hold names, addresses and codes: words a dictionary doesn't know. The phone's keyboard must
+ * leave them as typed, not "correct" them to a word it knows (or refuse a change to one it flagged).
+ */
+const PLAIN_TYPING = new Html('autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"');
+
+/**
+ * Whether a field has to be filled in, said on every field: a red "Required" or a quiet "Optional".
+ * @param {boolean} required
+ */
+const flag = (required) =>
+  required
+    ? html`<span class="flag flag--req">${t('edit.required')}</span>`
+    : html`<span class="flag flag--opt">${t('edit.optional')}</span>`;
+
+/**
  * One text field, with an input per language. The first language is the one that must be filled.
  * @param {string} name
  * @param {string} labelKey
@@ -37,16 +52,18 @@ const langName = (lang) => meta(lang, 'meta.name') || lang;
  */
 function textField(name, labelKey, ref, { multiline = false, required = false } = {}) {
   const first = langs()[0];
-  return html`<fieldset class="field"><legend class="label">${t(labelKey)}</legend>${langs().map((lang) => {
-    const id = `f-${name}-${lang}`;
-    const value = textIn(draft(), ref, lang);
-    const req = required && lang === first ? html` required` : '';
-    return html`<div class="lang-input"><label class="lang-tag" for="${id}" lang="${lang}">${langName(lang)}</label>${
-      multiline
-        ? html`<textarea id="${id}" name="${name}.${lang}" rows="3" lang="${lang}"${req}>${value}</textarea>`
-        : html`<input id="${id}" name="${name}.${lang}" lang="${lang}" value="${value}"${req}>`
-    }</div>`;
-  })}</fieldset>`;
+  return html`<fieldset class="field"><legend class="label">${t(labelKey)}${flag(required)}</legend>${langs().map(
+    (lang) => {
+      const id = `f-${name}-${lang}`;
+      const value = textIn(draft(), ref, lang);
+      const req = required && lang === first ? html` aria-required="true"` : '';
+      return html`<div class="lang-input"><label class="lang-tag" for="${id}" lang="${lang}">${langName(lang)}</label>${
+        multiline
+          ? html`<textarea id="${id}" name="${name}.${lang}" rows="3" lang="${lang}"${req}>${value}</textarea>`
+          : html`<input id="${id}" name="${name}.${lang}" lang="${lang}" value="${value}"${req} ${PLAIN_TYPING}>`
+      }</div>`;
+    },
+  )}</fieldset>`;
 }
 
 /**
@@ -54,11 +71,13 @@ function textField(name, labelKey, ref, { multiline = false, required = false } 
  * @param {string} name
  * @param {string} labelKey
  * @param {string | number | null | undefined} value
- * @param {string} [attrs]  trusted attributes, e.g. 'type="time" required'
+ * @param {{ required?: boolean, attrs?: string, hint?: string, after?: Html }} [options]
+ *   attrs: trusted attributes, e.g. 'type="time"'; hint: a line of help under the field; after: more under it
  */
-const plainField = (name, labelKey, value, attrs = '') =>
-  html`<div class="field"><label class="label" for="f-${name}">${t(labelKey)}</label>
-    <input id="f-${name}" name="${name}" value="${value ?? ''}" ${new Html(attrs)}></div>`;
+const plainField = (name, labelKey, value, { required = false, attrs = '', hint = '', after = new Html('') } = {}) =>
+  html`<div class="field"><label class="label" for="f-${name}">${t(labelKey)}${flag(required)}</label>
+    <input id="f-${name}" name="${name}" value="${value ?? ''}"${required ? html` aria-required="true"` : ''} ${PLAIN_TYPING} ${new Html(attrs)}>
+    ${hint ? html`<p class="field-hint">${hint}</p>` : ''}${after}</div>`;
 
 /**
  * A select of ids, with "None" first.
@@ -66,10 +85,12 @@ const plainField = (name, labelKey, value, attrs = '') =>
  * @param {string} labelKey
  * @param {[string, string][]} options  [id, label]
  * @param {string | null | undefined} value
+ * @param {{ noneKey?: string, hint?: string }} [extra]  what the empty choice says, and a line of help
  */
-const selectField = (name, labelKey, options, value) =>
-  html`<div class="field"><label class="label" for="f-${name}">${t(labelKey)}</label>
-    <select id="f-${name}" name="${name}"><option value="">${t('edit.none')}</option>${options.map(
+const selectField = (name, labelKey, options, value, { noneKey = 'edit.none', hint = '' } = {}) =>
+  html`<div class="field"><label class="label" for="f-${name}">${t(labelKey)}${flag(false)}</label>
+    ${hint ? html`<p class="field-hint">${hint}</p>` : ''}
+    <select id="f-${name}" name="${name}"><option value="">${t(noneKey)}</option>${options.map(
       ([id, label]) => html`<option value="${id}"${id === value ? html` selected` : ''}>${label}</option>`,
     )}</select></div>`;
 
@@ -83,7 +104,7 @@ const selectField = (name, labelKey, options, value) =>
  * @param {string} emptyKey  shown instead when there are no options
  */
 const checksField = (name, labelKey, options, values, hintKey, emptyKey) =>
-  html`<fieldset class="field"><legend class="label">${t(labelKey)}</legend>${
+  html`<fieldset class="field"><legend class="label">${t(labelKey)}${flag(false)}</legend>${
     options.length
       ? html`<p class="muted small">${t(hintKey)}</p>${options.map(
           ([id, label]) =>
@@ -156,7 +177,9 @@ function home() {
     <ul class="edit-list">${Object.entries(trip.places).map(([id, p]) => row(`place:${id}`, '', tr(p.name)))}</ul>
     <button class="btn" type="button" data-action="edit-open" data-arg="place:" style="align-self:flex-start">${icon('plus')}${t('edit.addPlace')}</button></section>
   <section class="section"><h2>${t('edit.tickets')}</h2>
-    <ul class="edit-list">${Object.entries(trip.tickets).map(([id, tk]) => row(`ticket:${id}`, tk.code, tr(tk.title)))}</ul>
+    <ul class="edit-list">${Object.entries(trip.tickets)
+      .reverse()
+      .map(([id, tk]) => row(`ticket:${id}`, tk.code, tr(tk.title)))}</ul>
     <button class="btn" type="button" data-action="edit-open" data-arg="ticket:" style="align-self:flex-start">${icon('plus')}${t('edit.addTicket')}</button></section>
   <section class="section"><h2>${t('edit.more')}</h2><p class="muted">${t('edit.moreNote')}</p>
     <ul class="edit-list">${row('json:trip', '{ }', t('edit.json.trip'))}${langs().map((l) => row(`json:${l}`, '{ }', t('edit.json.texts', { lang: langName(l) })))}</ul></section>`;
@@ -164,6 +187,24 @@ function home() {
 
 /** @param {Day} day */
 const sortedEvents = (day) => day.events.map((e, j) => ({ e, j })).sort((a, b) => toMin(a.e.time) - toMin(b.e.time));
+
+/**
+ * Where the day's forecast is for: a place of its own (a day in another city), or empty for the trip's place.
+ * Typed as latitude and longitude, or chosen on the map.
+ * @param {{ lat: number, lon: number } | null | undefined} own
+ */
+function weatherField(own) {
+  const main = draft().trip.weather;
+  /** @param {string} name @param {string} labelKey @param {number | undefined} value @param {number | undefined} fallback */
+  const coord = (name, labelKey, value, fallback) =>
+    html`<div class="lang-input"><label class="lang-tag" for="f-${name}">${t(labelKey)}</label>
+      <input id="f-${name}" name="${name}" inputmode="decimal" value="${value ?? ''}" placeholder="${fallback ?? ''}" ${PLAIN_TYPING}></div>`;
+  return html`<fieldset class="field"><legend class="label">${t('edit.day.weather')}${flag(false)}</legend>
+    <p class="field-hint">${t('edit.day.weatherHint')}</p>
+    <div class="coords">${coord('lat', 'edit.day.lat', own?.lat, main?.lat)}${coord('lon', 'edit.day.lon', own?.lon, main?.lon)}</div>
+    <div class="actions"><button class="btn" type="button" data-action="map-open" data-arg="weather">${icon('pin')}<span>${t('edit.day.weatherMap')}</span></button>
+      <button class="btn btn--quiet" type="button" data-action="weather-clear"><span>${t('edit.day.weatherClear')}</span></button></div></fieldset>`;
+}
 
 /** @param {number} index  -1 for a new day */
 function dayView(index) {
@@ -175,9 +216,17 @@ function dayView(index) {
   return html`${back()}${hello(isNew ? t('edit.newDay') : tr(day.title), date, t('day.n', { n: isNew ? days.length + 1 : index + 1 }))}
   ${form(
     'day',
-    html`${plainField('date', 'edit.day.date', date, 'type="date" required')}
+    html`${plainField('date', 'edit.day.date', date, { required: true, attrs: 'type="date"' })}
     ${textField('title', 'edit.day.title', day?.title, { required: true })}
     ${textField('note', 'edit.day.note', day?.note, { multiline: true })}
+    ${weatherField(day?.weather)}
+    ${selectField(
+      'hotel',
+      'edit.day.hotel',
+      Object.entries(draft().trip.places).map(([id, p]) => /** @type {[string, string]} */ ([id, tr(p.name)])),
+      day?.hotel,
+      { noneKey: 'edit.day.hotelSame', hint: t('edit.day.hotelHint') },
+    )}
     <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>`,
   )}
   ${
@@ -197,12 +246,14 @@ function eventView(dayIndex, index) {
   /** @type {Partial<Event>} */
   const ev = day.events[index] ?? { time: '09:00', icon: 'landmark' };
   const places = Object.entries(trip.places).map(([id, p]) => /** @type {[string, string]} */ ([id, tr(p.name)]));
-  const tickets = Object.entries(trip.tickets).map(([id, tk]) => /** @type {[string, string]} */ ([id, tr(tk.title)]));
+  const tickets = Object.entries(trip.tickets)
+    .reverse()
+    .map(([id, tk]) => /** @type {[string, string]} */ ([id, tr(tk.title)]));
   return html`${back()}${hello(index < 0 ? t('edit.newEvent') : tr(ev.title), `${tr(day.title)} · ${day.date}`, t('day.n', { n: dayIndex + 1 }))}
   ${form(
     'event',
-    html`${plainField('time', 'edit.event.time', ev.time, 'type="time" required')}
-    <fieldset class="field"><legend class="label">${t('edit.event.icon')}</legend><div class="chips icons">${EVENT_ICONS.map(
+    html`${plainField('time', 'edit.event.time', ev.time, { required: true, attrs: 'type="time"' })}
+    <fieldset class="field"><legend class="label">${t('edit.event.icon')}${flag(true)}</legend><div class="chips icons">${EVENT_ICONS.map(
       (name) =>
         html`<label class="chip choice"><input type="radio" name="icon" value="${name}"${name === ev.icon ? html` checked` : ''}>${icon(name)}<span>${t('edit.icon.' + name)}</span></label>`,
     )}</div></fieldset>
@@ -223,8 +274,12 @@ function placeView(id) {
     'place',
     html`${textField('name', 'edit.place.name', place?.name, { required: true })}
     ${plainField('localName', 'edit.place.localName', place?.localName)}
-    ${plainField('address', 'edit.place.address', place?.address, 'required')}
-    ${plainField('phone', 'edit.place.phone', place?.phone, 'type="tel"')}`,
+    ${plainField('address', 'edit.place.address', place?.address, {
+      required: true,
+      hint: t('edit.place.addressHint'),
+      after: html`<button class="btn" type="button" data-action="map-open">${icon('pin')}<span>${t('edit.place.chooseMap')}</span></button>`,
+    })}
+    ${plainField('phone', 'edit.place.phone', place?.phone, { attrs: 'type="tel"' })}`,
   )}`;
 }
 
@@ -250,8 +305,8 @@ function ticketView(v) {
     'ticket',
     html`${textField('title', 'edit.ticket.title', ticket?.title, { required: true })}
     ${textField('when', 'edit.ticket.when', ticket?.when, { required: true })}
-    ${plainField('code', 'edit.ticket.code', ticket?.code, 'required')}
-    <div class="field"><span class="label">${t('edit.ticket.image')}</span>
+    ${plainField('booking', 'edit.ticket.code', ticket?.code, { hint: t('edit.ticket.codeHint') })}
+    <div class="field"><span class="label">${t('edit.ticket.image')}${flag(false)}</span>
       <img class="thumb" id="f-thumb" alt=""${image ? html` src="${image}"` : html` hidden`}>
       <p class="muted small" id="f-pages"${note ? '' : html` hidden`}>${note}</p>
       <label class="btn" for="f-image">${icon('upload')}<span>${t('edit.ticket.replaceImage')}</span></label>
@@ -335,7 +390,8 @@ function newId(prefix, taken) {
 /**
  * Apply the open editor screen's form to the draft.
  * @param {HTMLFormElement} formEl
- * @returns {{ key: string, vars?: Record<string, string> } | null}  an error to show, or null when applied
+ * @returns {{ key: string, vars?: Record<string, string>, field?: string } | null}
+ *   an error to show (and the id of the field it is about), or null when applied
  */
 export function applyForm(formEl) {
   const v = state.edit[state.edit.length - 1];
@@ -345,7 +401,9 @@ export function applyForm(formEl) {
   const first = langs()[0];
   /** @param {string} name */
   const needText = (name) =>
-    value(data, `${name}.${first}`) ? null : { key: 'edit.err.required', vars: { lang: langName(first) } };
+    value(data, `${name}.${first}`)
+      ? null
+      : { key: 'edit.err.required', vars: { lang: langName(first) }, field: `f-${name}-${first}` };
 
   if (v?.view === 'json') {
     let parsed;
@@ -362,12 +420,29 @@ export function applyForm(formEl) {
 
   if (v?.view === 'day') {
     const date = value(data, 'date');
-    if (!realDate(date)) return { key: 'edit.err.dateForm' };
-    if (trip.days.some((d, i) => d.date === date && i !== v.day)) return { key: 'edit.err.dateTaken', vars: { date } };
+    if (!realDate(date)) return { key: 'edit.err.dateForm', field: 'f-date' };
+    if (trip.days.some((d, i) => d.date === date && i !== v.day))
+      return { key: 'edit.err.dateTaken', vars: { date }, field: 'f-date' };
     const missing = needText('title');
     if (missing) return missing;
+    // the day's own weather place: both numbers, or neither (then the trip's place is used)
+    const lat = value(data, 'lat').replace(',', '.');
+    const lon = value(data, 'lon').replace(',', '.');
+    /** @type {{ lat: number, lon: number } | null} */
+    let weather = null;
+    if (lat || lon) {
+      const [la, lo] = [Number(lat), Number(lon)];
+      if (!lat || !Number.isFinite(la) || Math.abs(la) > 90) return { key: 'edit.err.coords', field: 'f-lat' };
+      if (!lon || !Number.isFinite(lo) || Math.abs(lo) > 180) return { key: 'edit.err.coords', field: 'f-lon' };
+      weather = { lat: la, lon: lo };
+    }
     /** @type {Day} */
     const day = trip.days[v.day] ?? { date, title: '', events: [] };
+    if (weather) day.weather = weather;
+    else delete day.weather;
+    const hotel = value(data, 'hotel');
+    if (hotel) day.hotel = hotel;
+    else delete day.hotel;
     day.date = date;
     day.title = /** @type {TextRef} */ (setText(payload, day.title || null, typed(data, 'title')));
     const note = setText(payload, day.note, typed(data, 'note'));
@@ -382,7 +457,7 @@ export function applyForm(formEl) {
 
   if (v?.view === 'event') {
     const time = value(data, 'time');
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { key: 'edit.err.timeForm' };
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { key: 'edit.err.timeForm', field: 'f-time' };
     const missing = needText('title');
     if (missing) return missing;
     const day = trip.days[v.day];
@@ -410,7 +485,7 @@ export function applyForm(formEl) {
     const missing = needText('name');
     if (missing) return missing;
     const address = value(data, 'address');
-    if (!address) return { key: 'edit.err.address' };
+    if (!address) return { key: 'edit.err.address', field: 'f-address' };
     const id = v.id || newId('p', trip.places);
     const place = trip.places[id] ?? { name: '', address };
     place.name = /** @type {TextRef} */ (setText(payload, place.name || null, typed(data, 'name')));
@@ -430,8 +505,8 @@ export function applyForm(formEl) {
       const missing = needText(name);
       if (missing) return missing;
     }
-    const code = value(data, 'code');
-    if (!code) return { key: 'edit.err.code' };
+    // the code is optional: a ticket can be just a picture or a PDF (the model keeps it as an empty text)
+    const code = value(data, 'booking');
     const id = v.id || newId('t', trip.tickets);
     const ticket = trip.tickets[id] ?? { title: '', when: '', code };
     ticket.title = /** @type {TextRef} */ (setText(payload, ticket.title || null, typed(data, 'title')));

@@ -71,7 +71,7 @@
     },
   },
 
-  // icon: plane, car, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase
+  // icon: plane, car, train, bus, bed, food, coffee, landmark, ship, bag, walk, moon, suitcase
   // hidden: true on a day: only the admin password shows it; the family sees "Plan coming later" and the weather.
   days: [
     {

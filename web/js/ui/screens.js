@@ -4,7 +4,7 @@
 import { html, icon } from '../html.js';
 import { cap, fmt, loginLangs, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
-import { canSpeak, currentTrip, daysBetween, todayIndex, tripToday } from '../trip.js';
+import { canSpeak, currentHotelId, currentTrip, daysBetween, todayIndex, tripToday } from '../trip.js';
 import { mapUrl, store, telUrl } from '../util.js';
 import {
   dayCard,
@@ -118,7 +118,8 @@ function phrases() {
 function help() {
   const trip = currentTrip();
   const { help: h } = trip;
-  const hotel = trip.places[h.hotel];
+  const hotelId = currentHotelId();
+  const hotel = trip.places[hotelId];
   const ins = h.insurance;
   const con = h.consulate;
   return html`${hello(t('help.title'), '')}
@@ -131,7 +132,7 @@ function help() {
   <section class="section"><h2>${t('help.lost')}</h2><ol class="steps">${h.lost.map((s) => html`<li><span>${tr(s)}</span></li>`)}</ol></section>
   <section class="section"><h2>${t('help.hotel')}</h2><div class="card info">
     <p class="info-name">${tr(hotel.name)}</p><p>${hotel.address}</p>${hotel.phone ? html`<p class="mono">${hotel.phone}</p>` : ''}
-    <div class="actions"><button class="btn" type="button" data-action="taxi" data-arg="${h.hotel}">${icon('car')}${t('tile.taxi')}</button>
+    <div class="actions"><button class="btn" type="button" data-action="taxi" data-arg="${hotelId}">${icon('car')}${t('tile.taxi')}</button>
       <a class="btn" href="${mapUrl(hotel)}" target="_blank" rel="noopener">${icon('pin')}${t('action.map')}</a>
       ${hotel.phone ? html`<a class="btn" href="${telUrl(hotel.phone)}">${icon('phone')}${t('action.call')}</a>` : ''}</div></div></section>
   ${

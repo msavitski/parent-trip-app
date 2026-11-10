@@ -103,6 +103,8 @@ def _check_references(trip: Trip, data: DataDir, report: Report) -> None:
         if previous and current <= previous:
             report.error(f"days[{i}].date", f"{day.date} must come after the previous day ({previous})")
         previous = current
+        if day.hotel and day.hotel not in places:
+            report.error(f"days[{i}].hotel", f"unknown place '{day.hotel}' (known: {known(places)})")
         for j, event in enumerate(day.events):
             if event.place and event.place not in places:
                 report.error(f"days[{i}].events[{j}].place", f"unknown place '{event.place}' (known: {known(places)})")

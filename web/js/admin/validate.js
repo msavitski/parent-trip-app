@@ -16,6 +16,8 @@ import { languagesOf, refKey, refVars, textRefs } from './draft.js';
 export const EVENT_ICONS = [
   'plane',
   'car',
+  'train',
+  'bus',
   'bed',
   'food',
   'coffee',
@@ -55,6 +57,9 @@ export function validate(payload) {
     if (!realDate(day.date)) add(`days[${i}].date`, 'edit.err.date', { value: day.date });
     else if (previous && day.date <= previous) add(`days[${i}].date`, 'edit.err.dateOrder', { value: day.date });
     previous = day.date;
+    if (day.hotel && !places[day.hotel]) add(`days[${i}].hotel`, 'edit.err.place', { value: day.hotel });
+    const w = day.weather;
+    if (w && !(Math.abs(w.lat) <= 90 && Math.abs(w.lon) <= 180)) add(`days[${i}].weather`, 'edit.err.coords');
     (day.events ?? []).forEach((ev, j) => {
       const where = `days[${i}].events[${j}]`;
       if (!TIME.test(ev.time)) add(`${where}.time`, 'edit.err.time', { value: ev.time });

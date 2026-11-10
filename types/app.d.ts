@@ -36,6 +36,8 @@ export interface RepoTarget {
 /** The admin settings inside trip.enc (set by `trip admin`). */
 export interface AdminConfig {
   token?: string;
+  /** The day the token stops working, "2026-12-01" (set by `trip admin`, which asks GitHub). The app warns before it. */
+  tokenExpires?: string;
   /** GitHub API address (only changed for testing). */
   api?: string;
   /** The public site repository and the trip.enc file in it. */
@@ -140,12 +142,12 @@ export interface WeatherCache {
 }
 
 export type Tab = 'today' | 'days' | 'lists' | 'phrases' | 'help' | 'edit';
-export type SheetType = 'taxi' | 'tickets' | 'ticket' | 'money' | 'phrase';
+export type SheetType = 'taxi' | 'tickets' | 'ticket' | 'money' | 'phrase' | 'map';
 
 /** An open full-screen sheet. */
 export interface Sheet {
   type: SheetType;
-  /** Place id, ticket id or phrase index. */
+  /** Place id, ticket id or phrase index; for the tickets list, the ticket ids to show ("a,b"), none = all. */
   arg?: string | number;
 }
 

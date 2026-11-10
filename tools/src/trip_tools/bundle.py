@@ -126,6 +126,8 @@ def for_family(body: dict[str, Any]) -> dict[str, Any]:
                 for e in d.get("events") or []:
                     value = e.get(field)  # a ticket can also be a list of ticket ids
                     found.update(value if isinstance(value, list) else [value])
+                if field == "place":
+                    found.add(d.get("hotel"))  # the day's hotel counts as a place it uses
         return found
 
     def without_secret(items: dict[str, Any] | None, field: str, always: Any = None) -> dict[str, Any]:

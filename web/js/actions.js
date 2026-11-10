@@ -6,6 +6,7 @@
  */
 import { discardDraft, readImage, saveDraft } from './admin/draft.js';
 import { applyForm, deleteFromDraft, pagesNote, parseEditArg, toggleHidden } from './admin/editor.js';
+import { pickResult, searchMap, useMapPlace } from './admin/map.js';
 import { publish } from './admin/publish.js';
 import {
   applyLanguage,
@@ -13,6 +14,7 @@ import {
   openDay,
   openEdit,
   openSheet,
+  refreshWeather,
   render,
   retargetSheet,
   setTab,
@@ -25,7 +27,7 @@ import { t } from './i18n.js';
 import { state } from './state.js';
 import { currentTrip } from './trip.js';
 import { clearTicked, loginScreen, saveTicked, ticked } from './ui/screens.js';
-import { moneyCalc } from './ui/sheets.js';
+import { moneyCalc, zoomTicket } from './ui/sheets.js';
 import { speak, store } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
 
@@ -67,6 +69,8 @@ const ACTIONS = {
   open: (_, arg) => openSheet(/** @type {SheetType} */ (arg)),
   taxi: (_, arg) => openSheet('taxi', arg),
   ticket: (_, arg) => openSheet('ticket', arg),
+  'tickets-of': (_, arg) => openSheet('tickets', arg),
+  zoom: (_, arg) => zoomTicket(/** @type {'in' | 'out' | 'fit'} */ (arg)),
   phrase: (_, arg) => openSheet('phrase', Number(arg)),
   'swap-place': (_, arg) => retargetSheet(arg),
   say: (_, arg) => speak(arg, state.settings.speechLang),
@@ -108,6 +112,18 @@ const ACTIONS = {
   },
 
   /* ---------- admin: the Edit tab ---------- */
+
+  'map-open': (_, arg) => openSheet('map', arg || undefined),
+  'weather-clear'() {
+    for (const id of ['f-lat', 'f-lon']) {
+      const field = document.getElementById(id);
+      if (field instanceof HTMLInputElement) field.value = '';
+    }
+  },
+  'map-result': (_, arg) => pickResult(Number(arg)),
+  'map-use'() {
+    if (useMapPlace()) goBack();
+  },
 
   'edit-open'(_, arg) {
     const editView = parseEditArg(arg);
@@ -181,11 +197,23 @@ function changed(close = true) {
 /** Save an editor form. @param {HTMLFormElement} form */
 function onEditSubmit(form) {
   const error = applyForm(form);
-  if (!error) return changed();
+  if (!error) {
+    const weatherDay = state.edit[state.edit.length - 1]?.view === 'day';
+    changed();
+    if (weatherDay) refreshWeather(true); // a day may have a new place: fetch its forecast now
+    return;
+  }
   const box = byId('form-err');
   box.textContent = t(error.key, error.vars);
   box.hidden = false;
-  box.scrollIntoView({ block: 'center' });
+  // show which field it is: marked red, and the keyboard goes there
+  for (const marked of form.querySelectorAll('[aria-invalid]')) marked.removeAttribute('aria-invalid');
+  const field = error.field ? document.getElementById(error.field) : null;
+  if (field) {
+    field.setAttribute('aria-invalid', 'true');
+    field.focus({ preventScroll: true });
+    field.scrollIntoView({ block: 'center' });
+  } else box.scrollIntoView({ block: 'center' });
 }
 
 /**
@@ -279,6 +307,8 @@ async function onLogin(event) {
     error.textContent = t('login.wrong');
     error.dataset.key = 'login.wrong';
     error.hidden = false;
+    // the field stays open for the next try: tapping Open took the focus (and the keyboard) away from it
+    input.focus();
     input.select();
     return;
   }
@@ -303,10 +333,19 @@ export function listen() {
     const el = event.target;
     if (el instanceof HTMLInputElement && el.dataset.money) moneyCalc(el);
   });
+  // moving to the other amount: select what the converter put there, so typing replaces it instead of adding to it
+  document.addEventListener('focusin', (event) => {
+    const el = event.target;
+    if (el instanceof HTMLInputElement && el.dataset.money) setTimeout(() => el.select(), 0);
+  });
   document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
     if (form.id === 'login') onLogin(event);
+    if (form.id === 'map-search') {
+      event.preventDefault();
+      searchMap();
+    }
     if (form.id === 'edit-form') {
       event.preventDefault();
       onEditSubmit(form);

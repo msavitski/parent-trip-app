@@ -66,8 +66,21 @@ phone, edit and publish). Help → "Forget the password" locks it again.
 - Publishing commits from the app (`web/js/admin/github.js`). It first checks that the site still has the
   `trip.enc` this app opened, and moves the branch without force, so it never overwrites someone else's change.
 - The token can't change `.github/workflows/`, so admin mode can't alter what CI does.
+- `trip admin` asks GitHub when the token expires and keeps that day (`tokenExpires`) with the token. The app warns
+  the admin from two weeks before: a card on Today and the Edit tab, and a dot on the tab. (A web page can't read
+  that day from GitHub itself, so the date is only as new as the last `trip admin`; `--token-expires YYYY-MM-DD`
+  sets it by hand.) After it passes, Publish says GitHub refused the token.
 - **Lost phone or leaked token:** delete the token on GitHub (it stops working at once), make a new one, run
   `trip admin`, and change the admin password with `trip password admin`.
+
+## Choosing a place on a map (admin mode)
+
+The Edit tab's place form can pick an address on a map. That map is Leaflet (in `web/vendor/`, loaded only then),
+with tiles from `tile.openstreetmap.org`, and the search and the address of a tapped spot come from OpenStreetMap's
+Nominatim. So **OpenStreetMap sees which area is shown and what is searched** (and the admin's IP address). Nothing
+else leaves the phone: no password, no token, and nothing about the other places. The family's phones never load any
+of it, and the admin can always type the address instead. (Open-Meteo already gets the trip's coordinates for the
+weather.)
 
 ## On the phone
 

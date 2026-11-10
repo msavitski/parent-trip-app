@@ -5,7 +5,9 @@
  */
 import { discardDraft, isDirty, loadDraft } from './admin/draft.js';
 import { editScreen } from './admin/editor.js';
+import { startMap, stopMap } from './admin/map.js';
 import { pendingEnc } from './admin/publish.js';
+import { tokenAlert, tokenExpiry } from './admin/token.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
@@ -43,7 +45,10 @@ const stamp = () => {
 /** Draw the current tab. If drawing fails, show a message instead of a blank screen. */
 export function render() {
   try {
-    mount(view, state.tab === 'edit' ? editScreen() : SCREENS[state.tab]());
+    const screen = state.tab === 'edit' ? editScreen() : SCREENS[state.tab]();
+    // admin: a GitHub token that is about to expire is the first thing on Today and on the Edit tab's overview
+    const alert = state.tab === 'today' || (state.tab === 'edit' && !state.edit.length) ? tokenAlert() : '';
+    mount(view, alert ? html`${alert}${screen}` : screen);
   } catch (error) {
     console.error(error);
     mount(view, messageScreen('error.generic', true));
@@ -73,7 +78,7 @@ export function applyLanguage(lang) {
     tabsEl,
     html`${tabs.map(
       ([tab, iconName]) =>
-        html`<button type="button" class="tab${tab === 'help' ? ' tab--help' : ''}" data-action="tab" data-arg="${tab}">${icon(iconName)}<span>${t('tab.' + tab)}</span></button>`,
+        html`<button type="button" class="tab${tab === 'help' ? ' tab--help' : ''}" data-action="tab" data-arg="${tab}">${icon(iconName)}<span>${t('tab.' + tab)}</span>${tab === 'edit' && tokenExpiry() ? html`<span class="tab-dot" aria-hidden="true"></span>` : ''}</button>`,
     )}`,
   );
 }
@@ -183,13 +188,15 @@ export function retargetSheet(arg) {
 /** Draw the top sheet, or hide the sheet layer when none is open. */
 export function showSheet() {
   const top = state.sheets[state.sheets.length - 1];
+  if (top?.type !== 'map') stopMap();
   if (!top) {
     sheetEl.hidden = true;
     sheetEl.innerHTML = '';
     document.documentElement.classList.remove('locked');
     keepAwake(false);
     stopSpeaking();
-    if (stamp() !== lastStamp) render();
+    // catch up with the clock, on the screens that show it: re-drawing the Edit tab here would wipe an open form
+    if (stamp() !== lastStamp && (state.tab === 'today' || state.dayOpen != null)) render();
     return;
   }
   try {
@@ -206,6 +213,7 @@ export function showSheet() {
   document.documentElement.classList.add('locked');
   keepAwake(KEEP_AWAKE.includes(top.type));
   sheetEl.querySelector(/** @type {'button'} */ ('button.close'))?.focus({ preventScroll: true });
+  if (top.type === 'map') startMap();
 }
 
 /* ---------- start and keep fresh ---------- */
@@ -218,7 +226,7 @@ function refresh() {
 }
 
 /** Fetch weather and redraw if a new forecast arrived. @param {boolean} [force] */
-async function refreshWeather(force = false) {
+export async function refreshWeather(force = false) {
   const changed = await updateWeather(force);
   if (changed && !state.sheets.length && (state.tab === 'today' || state.tab === 'days')) render();
 }
