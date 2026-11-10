@@ -9,7 +9,15 @@ import { fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { currentHotelId, currentTrip, daysBetween, nowMin, ticketsOf, toMin, tripToday } from '../trip.js';
 import { dirUrl, mapUrl, telUrl } from '../util.js';
-import { hasWeather, outfit, WEATHER_ICON, weatherFetchedAt, weatherFor, weatherKind } from '../weather.js';
+import {
+  hasWeather,
+  outfit,
+  WEATHER_ICON,
+  weatherFetchedAt,
+  weatherFor,
+  weatherKind,
+  weatherUnreachable,
+} from '../weather.js';
 
 /**
  * Screen header: small eyebrow line, big title, optional subtitle.
@@ -189,7 +197,7 @@ function updatedText(own) {
     daysBetween(date, new Date()) === 0
       ? t('wx.atTime', { time: fmt.time.format(date) })
       : `${fmt.short.format(date)}, ${fmt.time.format(date)}`;
-  return t('wx.updated', { when }) + (navigator.onLine === false ? ` · ${t('wx.offline')}` : '');
+  return t('wx.updated', { when }) + (weatherUnreachable() ? ` · ${t('wx.offline')}` : '');
 }
 
 /**
@@ -212,7 +220,14 @@ export function weatherCard(date, own) {
   const w = weatherFor(date, own);
   if (!w) {
     // the real date, also in demo mode: the forecast is for the day's real date
-    const key = daysBetween(new Date(), date) > 14 ? 'wx.notYet' : 'wx.none';
+    if (daysBetween(date, new Date()) > 1) return ''; // a day that has passed: it can't be asked for any more
+    // a forecast that is already here but doesn't reach this day yet: "not yet"; none here yet: loading, or no internet
+    const key =
+      daysBetween(new Date(), date) > 14 || weatherFetchedAt(own) != null
+        ? 'wx.notYet'
+        : weatherUnreachable()
+          ? 'wx.none'
+          : 'wx.loading';
     return html`<section class="card wx wx--empty">${icon('cloud')}<p>${t(key)}</p></section>`;
   }
   const kind = weatherKind(w.code);

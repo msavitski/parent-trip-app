@@ -13,7 +13,7 @@ import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
 import { state } from './state.js';
 import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
-import { KEEP_AWAKE, renderSheet } from './ui/sheets.js';
+import { KEEP_AWAKE, listenPinch, renderSheet } from './ui/sheets.js';
 import { keepAwake, stopSpeaking } from './util.js';
 import { fetchEnc } from './vault.js';
 import { updateWeather } from './weather.js';
@@ -22,6 +22,7 @@ import { updateWeather } from './weather.js';
 const byId = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const view = byId('view');
 const sheetEl = byId('sheet');
+listenPinch(sheetEl);
 const tabsEl = byId('tabs');
 
 /** @type {[Tab, string][]} tab and its icon */
@@ -127,7 +128,7 @@ addEventListener('popstate', () => {
 /** @param {Tab} tab */
 export function setTab(tab) {
   // leaving an open day or editor screen: drop their history entries quietly
-  const inside = (state.dayOpen != null ? 1 : 0) + state.edit.length;
+  const inside = (state.dayOpen != null ? 1 : 0) + state.edit.length + state.sheets.length;
   const steps = Math.min(inside, depth);
   if (steps > 0) {
     depth -= steps;
@@ -137,6 +138,9 @@ export function setTab(tab) {
   state.tab = tab;
   state.dayOpen = null;
   state.edit = [];
+  // the tab bar stays under an open sheet: a tap on a tab closes the sheets
+  state.sheets.length = 0;
+  showSheet();
   render();
   window.scrollTo(0, 0);
 }
@@ -277,9 +281,8 @@ function watch() {
   });
   // the moment the phone gets internet back, fetch a fresh forecast; when it loses it, say so on the card
   addEventListener('online', () => refreshWeather(true));
-  addEventListener('offline', () => {
-    if (!state.sheets.length && (state.tab === 'today' || state.tab === 'days')) render();
-  });
+  // the phone says it lost the internet: try the forecast now, and the card says so if that fails too
+  addEventListener('offline', () => refreshWeather(true));
 }
 
 /**

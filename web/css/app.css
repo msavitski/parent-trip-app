@@ -805,6 +805,63 @@ a {
   text-decoration-thickness: 2px;
 }
 
+/* the person's own items of a list (kept on this phone) */
+.check-mine {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.check-mine .check {
+  flex: 1;
+  min-width: 0;
+}
+.check-mine .check span {
+  overflow-wrap: anywhere;
+}
+.check-del {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+}
+.check-del:active {
+  background: var(--line);
+}
+.add-item {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.add-item input {
+  flex: 1;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.add-item input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.add-item input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.add-item .btn {
+  flex: none;
+}
+
 /* phrases */
 .phrase {
   display: grid;
@@ -964,10 +1021,10 @@ a {
   color: var(--danger);
 }
 
-/* full-screen sheets */
+/* full-screen sheets: they stop above the tab bar, which stays on screen (a tap on a tab closes the sheet) */
 .sheet {
   position: fixed;
-  inset: 0;
+  inset: 0 0 calc(var(--tabbar) + 1px + env(safe-area-inset-bottom, 0px));
   z-index: 20;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -979,7 +1036,7 @@ a {
   background: var(--bg);
   color: var(--ink);
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 32px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -1149,9 +1206,10 @@ a {
   color: var(--paper);
 }
 /* The browser's own pinch zoom of a fixed full-screen layer leaves its bottom out of reach (a big document
-   could not be scrolled to the end), so the ticket has + / - buttons instead and pinch is off here. */
+   could not be scrolled to the end), so it is off here: the picture is zoomed by the + / - buttons and by
+   a two-finger pinch handled in sheets.js (listenPinch), which zooms the picture, not the page. */
 /* On every element, not just the sheet: a touch on the picture (inside its own scroll box) only looks at the
-   touch-action up to that box, so pinching there still zoomed the page instead of leaving it to the buttons. */
+   touch-action up to that box, so pinching there still zoomed the page instead of leaving it to the app. */
 .sheet--ticket,
 .sheet--ticket * {
   touch-action: pan-x pan-y;
@@ -1188,13 +1246,14 @@ a {
 }
 /* floats at the bottom of the screen while a tall document scrolls under it (the sheet leaves room for it) */
 .sheet--ticket {
-  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 6.5rem;
 }
 .ticket-zoom {
   position: fixed;
   left: 50%;
   translate: -50% 0;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  /* above the tab bar */
+  bottom: calc(var(--tabbar) + 13px + env(safe-area-inset-bottom, 0px));
   z-index: 2;
   display: flex;
   align-items: center;
@@ -1331,8 +1390,22 @@ a {
   display: grid;
   gap: 18px;
 }
-.form > .btn {
-  justify-self: start;
+/* Save and the error of a failed save: at the top, and it stays there while a long form scrolls */
+.form-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin: -16px -16px 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
+}
+.form-bar .form-err {
+  justify-self: stretch;
 }
 .field {
   display: grid;
@@ -1466,9 +1539,65 @@ a {
   cursor: pointer;
 }
 .edit-row .mono {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 500;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+/* a collapsible section of the Edit tab: the heading is the button */
+.fold {
+  display: grid;
+  gap: 12px;
+}
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 3.5rem;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fold > summary:active {
+  transform: scale(0.99);
+}
+.fold > summary h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.fold-count {
+  min-width: 1.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 700 0.9375rem var(--f-mono);
+  text-align: center;
+}
+.fold > summary .chev {
+  transition: rotate 0.15s;
+}
+.fold[open] > summary .chev {
+  rotate: 90deg;
+}
+.fold-body {
+  display: grid;
+  gap: 12px;
+}
+.edit-row-ic {
+  color: var(--accent);
 }
 .edit-row > span:nth-child(2) {
   min-width: 0;
