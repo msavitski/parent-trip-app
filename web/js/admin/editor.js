@@ -10,10 +10,10 @@
  * @import { Day, Event, TextRef } from '../../../types/trip'
  */
 import { Html, html, icon } from '../html.js';
-import { meta, t, tr } from '../i18n.js';
+import { cap, fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { addDays, isoDate, parseDate, ticketsOf, toMin } from '../trip.js';
-import { hello } from '../ui/components.js';
+import { fold, pageHeader, screen } from '../ui/components.js';
 import { dropUnusedImages, isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
 import { EVENT_ICONS, realDate } from './validate.js';
 
@@ -132,57 +132,53 @@ const row = (arg, aside, title, lead = '') => html`<li>${rowButton(arg, aside, t
  * @param {number} index
  */
 const dayRow = (day, index) =>
-  html`<li class="edit-item${day.hidden ? ' edit-item--hidden' : ''}">${rowButton(`day:${index}`, day.date, tr(day.title))}
+  html`<li class="edit-item${day.hidden ? ' edit-item--hidden' : ''}">${rowButton(`day:${index}`, fmt.short.format(parseDate(day.date)), tr(day.title))}
     <button class="eye" type="button" data-action="edit-hide" data-arg="${index}" aria-pressed="${!day.hidden}" aria-label="${t('edit.day.shown')}" title="${t('edit.day.shown')}">${icon(day.hidden ? 'eyeOff' : 'eye')}</button></li>`;
-
-const back = () =>
-  html`<button class="back" type="button" data-action="back">${icon('left')}<span>${t('edit.back')}</span></button>`;
 
 const formError = () => html`<p class="form-err" id="form-err" role="alert" hidden></p>`;
 
 /**
- * An editor form; applyForm() in this module knows what to do with it.
- * @param {string} formName
- * @param {Html} body
- * @param {{ id: string, title: string, open: boolean }} [folded]  put the fields in a section that can be collapsed
- *   (Save stays on top, outside it)
+ * The pinned header of an Edit screen: Back, the title and Save (it belongs to the form further down) in one row,
+ * and the error of a failed save under it, so none of them needs a scroll however long the form is.
+ * @param {string} big
+ * @param {string} [sub]
+ * @param {string} [eyebrow]
+ * @param {string} [saveKey]  the Save button's text
  */
-const form = (formName, body, folded) =>
-  html`<form class="card form" id="edit-form" data-form="${formName}" novalidate>${saveBar(t('edit.save'))}${
-    folded ? fold(folded.id, folded.title, body, { open: folded.open }) : body
-  }</form>`;
+const editHeader = (big, sub, eyebrow, saveKey = 'edit.save') =>
+  pageHeader(big, sub, eyebrow, {
+    back: t('edit.back'),
+    // icon only, like Back: a text button squeezes the title into a narrow column on a small phone
+    action: html`<button class="btn btn--solid btn--round" type="submit" form="edit-form" aria-label="${t(saveKey)}" title="${t(saveKey)}">${icon('check')}</button>`,
+    after: formError(),
+  });
 
 /**
- * The Save button and the error of a failed save, at the top of the form and sticky: a long form (or a long
- * list of events under it) never needs a scroll to reach it, and the message is in view when it appears.
+ * The last row of a section: add something to it.
+ * @param {string} arg  what edit-open opens, e.g. "event:2:-1"
  * @param {string} label
  */
-const saveBar = (label) =>
-  html`<div class="form-bar"><button class="btn btn--solid" type="submit">${icon('check')}${label}</button>${formError()}</div>`;
+const addRow = (arg, label) =>
+  html`<button class="edit-add" type="button" data-action="edit-open" data-arg="${arg}">${icon('plus')}<span>${label}</span></button>`;
 
 /**
- * Which sections the admin has opened or closed. Kept across redraws and across days: collapse "Day details"
- * once and it stays collapsed for the next day, so the events are at the top.
- * @type {Map<string, boolean>}
+ * Delete what the screen edits (it asks again before deleting).
+ * @param {string} arg  e.g. "day:2"
+ * @param {string} label
  */
-const folds = new Map();
-
-/** A section was opened or closed: remember it. @param {HTMLDetailsElement} el */
-export const rememberFold = (el) => {
-  if (el.dataset.fold) folds.set(el.dataset.fold, el.open);
-};
+const deleteButton = (arg, label) =>
+  html`<button class="btn btn--quiet edit-del" type="button" data-action="edit-delete" data-arg="${arg}">${icon('trash')}<span>${label}</span></button>`;
 
 /**
- * A section of the Edit tab that collapses, so a long screen can be shortened to the part being edited.
- * @param {string} id  what rememberFold keeps it under
- * @param {string} title
+ * An editor form; applyForm() in this module knows what to do with it. Save is in the pinned header (editHeader).
+ * @param {string} formName
  * @param {Html} body
- * @param {{ open?: boolean, count?: number }} [options]  open: when the admin hasn't chosen yet; count: items inside
+ * @param {{ id: string, title: string, open: boolean }} [folded]  a card that can be collapsed instead of a plain one
  */
-const fold = (id, title, body, { open = false, count } = {}) =>
-  html`<details class="fold" data-fold="${id}"${(folds.get(id) ?? open) ? html` open` : ''}><summary><h2>${title}</h2>${
-    count === undefined ? '' : html`<span class="fold-count">${count}</span>`
-  }${icon('chev', 'ic chev')}</summary><div class="fold-body">${body}</div></details>`;
+const form = (formName, body, folded) =>
+  folded
+    ? html`<form class="form" id="edit-form" data-form="${formName}" novalidate>${fold(folded.id, folded.title, body, { open: folded.open })}</form>`
+    : html`<form class="card form" id="edit-form" data-form="${formName}" novalidate>${body}</form>`;
 
 /** The latest Publish result. */
 function notice() {
@@ -197,29 +193,41 @@ function notice() {
 
 /* ---------- screens ---------- */
 
+/**
+ * Publish and Discard, in the pinned header of the overview: they are what this screen is for, and a long list of
+ * days and places must not push them out of reach. Round icons, like the other header buttons; Discard asks twice,
+ * and its label (hidden until then) says so.
+ * @param {boolean} dirty  there are unpublished changes
+ */
+const publishButtons = (dirty) =>
+  html`${
+    dirty
+      ? html`<button class="btn btn--quiet btn--round" type="button" data-action="discard" title="${t('edit.discard')}" aria-label="${t('edit.discard')}">${icon('trash')}</button>`
+      : ''
+  }<button class="btn btn--solid btn--round" type="button" data-action="publish" title="${state.publishing ? t('edit.publishing') : t('edit.publish')}" aria-label="${state.publishing ? t('edit.publishing') : t('edit.publish')}"${!dirty || state.publishing ? html` disabled` : ''}${state.publishing ? html` aria-busy="true"` : ''}>${icon('upload')}</button>`;
+
 function home() {
   const trip = draft().trip;
   const dirty = isDirty();
-  return html`${hello(t('edit.title'), dirty ? t('edit.unpublished') : t('edit.allPublished'))}
-  ${notice()}
-  <div class="actions">
-    <button class="btn btn--solid" type="button" data-action="publish"${!dirty || state.publishing ? html` disabled` : ''}>${icon('upload')}<span>${state.publishing ? t('edit.publishing') : t('edit.publish')}</span></button>
-    ${dirty ? html`<button class="btn btn--quiet" type="button" data-action="discard"><span>${t('edit.discard')}</span></button>` : ''}
-  </div>
+  return screen(
+    pageHeader(t('edit.title'), dirty ? t('edit.unpublished') : t('edit.allPublished'), undefined, {
+      action: publishButtons(dirty),
+    }),
+    html`
+  ${notice()}${dirty && !state.notice && !state.pending ? html`<p class="note">${icon('info')}<span>${t('edit.unpublishedNote')}</span></p>` : ''}
   ${fold(
     'days',
     t('edit.days'),
-    html`<p class="muted">${t('edit.daysNote')}</p>
-    <ul class="edit-list">${trip.days.map(dayRow)}</ul>
-    <button class="btn" type="button" data-action="edit-open" data-arg="day:-1" style="align-self:flex-start">${icon('plus')}${t('edit.addDay')}</button>`,
-    { open: true, count: trip.days.length },
+    html`<p class="muted fold-note">${t('edit.daysNote')}</p>
+    <ul class="edit-list">${trip.days.map(dayRow)}</ul>${addRow('day:-1', t('edit.addDay'))}`,
+    { open: true, count: trip.days.length, list: true },
   )}
   ${fold(
     'places',
     t('edit.places'),
     html`<ul class="edit-list">${Object.entries(trip.places).map(([id, p]) => row(`place:${id}`, '', tr(p.name)))}</ul>
-    <button class="btn" type="button" data-action="edit-open" data-arg="place:" style="align-self:flex-start">${icon('plus')}${t('edit.addPlace')}</button>`,
-    { count: Object.keys(trip.places).length },
+    ${addRow('place:', t('edit.addPlace'))}`,
+    { count: Object.keys(trip.places).length, list: true },
   )}
   ${fold(
     'tickets',
@@ -227,15 +235,17 @@ function home() {
     html`<ul class="edit-list">${Object.entries(trip.tickets)
       .reverse()
       .map(([id, tk]) => row(`ticket:${id}`, tk.code, tr(tk.title)))}</ul>
-    <button class="btn" type="button" data-action="edit-open" data-arg="ticket:" style="align-self:flex-start">${icon('plus')}${t('edit.addTicket')}</button>`,
-    { count: Object.keys(trip.tickets).length },
+    ${addRow('ticket:', t('edit.addTicket'))}`,
+    { count: Object.keys(trip.tickets).length, list: true },
   )}
   ${fold(
     'more',
     t('edit.more'),
-    html`<p class="muted">${t('edit.moreNote')}</p>
+    html`<p class="muted fold-note">${t('edit.moreNote')}</p>
     <ul class="edit-list">${row('json:trip', '{ }', t('edit.json.trip'))}${langs().map((l) => row(`json:${l}`, '{ }', t('edit.json.texts', { lang: langName(l) })))}</ul>`,
-  )}`;
+    { list: true },
+  )}`,
+  );
 }
 
 /** @param {Day} day */
@@ -259,6 +269,9 @@ function weatherField(own) {
       <button class="btn btn--quiet" type="button" data-action="weather-clear"><span>${t('edit.day.weatherClear')}</span></button></div></fieldset>`;
 }
 
+/** A day's date the way the rest of the app writes it: "Tuesday 3 November". @param {string} iso */
+const longDate = (iso) => cap(fmt.long.format(parseDate(iso)));
+
 /** @param {number} index  -1 for a new day */
 function dayView(index) {
   const days = draft().trip.days;
@@ -266,7 +279,13 @@ function dayView(index) {
   const isNew = !day;
   const date =
     day?.date ?? (days.length ? isoDate(addDays(parseDate(days[days.length - 1].date), 1)) : isoDate(new Date()));
-  return html`${back()}${hello(isNew ? t('edit.newDay') : tr(day.title), date, t('day.n', { n: isNew ? days.length + 1 : index + 1 }))}
+  return screen(
+    editHeader(
+      isNew ? t('edit.newDay') : tr(day.title),
+      longDate(date),
+      t('day.n', { n: isNew ? days.length + 1 : index + 1 }),
+    ),
+    html`
   ${form(
     'day',
     html`${plainField('date', 'edit.day.date', date, { required: true, attrs: 'type="date"' })}
@@ -280,22 +299,22 @@ function dayView(index) {
       day?.hotel,
       { noneKey: 'edit.day.hotelSame', hint: t('edit.day.hotelHint') },
     )}
-    <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>`,
+    <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>
+    ${isNew || days.length < 2 ? '' : deleteButton(`day:${index}`, t('edit.deleteDay'))}`,
     // a new day has nothing but these fields; an existing one is mostly opened to work on its events
     { id: 'day-details', title: t('edit.day.details'), open: isNew },
   )}
   ${
     isNew
       ? ''
-      : html`${fold(
+      : fold(
           'day-events',
           t('edit.events'),
-          html`<ul class="edit-list">${sortedEvents(day).map(({ e, j }) => row(`event:${index}:${j}`, e.time, tr(e.title), e.icon))}</ul>
-    <button class="btn" type="button" data-action="edit-open" data-arg="event:${index}:-1" style="align-self:flex-start">${icon('plus')}${t('edit.addEvent')}</button>`,
-          { open: true, count: day.events.length },
-        )}
-  ${days.length > 1 ? html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="day:${index}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteDay')}</span></button>` : ''}`
-  }`;
+          html`<ul class="edit-list">${sortedEvents(day).map(({ e, j }) => row(`event:${index}:${j}`, e.time, tr(e.title), e.icon))}</ul>${addRow(`event:${index}:-1`, t('edit.addEvent'))}`,
+          { open: true, count: day.events.length, list: true },
+        )
+  }`,
+  );
 }
 
 /** @param {number} dayIndex @param {number} index  -1 for a new event */
@@ -308,7 +327,13 @@ function eventView(dayIndex, index) {
   const tickets = Object.entries(trip.tickets)
     .reverse()
     .map(([id, tk]) => /** @type {[string, string]} */ ([id, tr(tk.title)]));
-  return html`${back()}${hello(index < 0 ? t('edit.newEvent') : tr(ev.title), `${tr(day.title)} · ${day.date}`, t('day.n', { n: dayIndex + 1 }))}
+  return screen(
+    editHeader(
+      index < 0 ? t('edit.newEvent') : tr(ev.title),
+      `${tr(day.title)} · ${longDate(day.date)}`,
+      t('day.n', { n: dayIndex + 1 }),
+    ),
+    html`
   ${form(
     'event',
     html`${plainField('time', 'edit.event.time', ev.time, { required: true, attrs: 'type="time"' })}
@@ -320,15 +345,18 @@ function eventView(dayIndex, index) {
     ${textField('note', 'edit.event.note', ev.note, { multiline: true })}
     ${textField('meet', 'edit.event.meet', ev.meet)}
     ${selectField('place', 'edit.event.place', places, ev.place)}
-    ${checksField('ticket', 'edit.event.tickets', tickets, ticketsOf(ev), 'edit.event.ticketsHint', 'edit.event.noTickets')}`,
-  )}
-  ${index < 0 ? '' : html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="event:${dayIndex}:${index}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteEvent')}</span></button>`}`;
+    ${checksField('ticket', 'edit.event.tickets', tickets, ticketsOf(ev), 'edit.event.ticketsHint', 'edit.event.noTickets')}
+    ${index < 0 ? '' : deleteButton(`event:${dayIndex}:${index}`, t('edit.deleteEvent'))}`,
+  )}`,
+  );
 }
 
 /** @param {string} id  "" for a new place */
 function placeView(id) {
   const place = draft().trip.places[id];
-  return html`${back()}${hello(place ? tr(place.name) : t('edit.newPlace'), place?.address ?? '', t('edit.places'))}
+  return screen(
+    editHeader(place ? tr(place.name) : t('edit.newPlace'), place?.address ?? '', t('edit.places')),
+    html`
   ${form(
     'place',
     html`${textField('name', 'edit.place.name', place?.name, { required: true })}
@@ -339,7 +367,8 @@ function placeView(id) {
       after: html`<button class="btn" type="button" data-action="map-open">${icon('pin')}<span>${t('edit.place.chooseMap')}</span></button>`,
     })}
     ${plainField('phone', 'edit.place.phone', place?.phone, { attrs: 'type="tel"' })}`,
-  )}`;
+  )}`,
+  );
 }
 
 /** File types a ticket can be made from (a PDF becomes an image). */
@@ -359,7 +388,9 @@ function ticketView(v) {
   const image = v.image?.dataUrl ?? (ticket?.image ? payload.images[ticket.image] : null);
   const note = pagesNote(v.image);
   // choosing a file updates the picture in place (actions.js), so the text typed so far stays
-  return html`${back()}${hello(ticket ? tr(ticket.title) : t('edit.newTicket'), ticket ? tr(ticket.when) : '', t('edit.tickets'))}
+  return screen(
+    editHeader(ticket ? tr(ticket.title) : t('edit.newTicket'), ticket ? tr(ticket.when) : '', t('edit.tickets')),
+    html`
   ${form(
     'ticket',
     html`${textField('title', 'edit.ticket.title', ticket?.title, { required: true })}
@@ -369,9 +400,10 @@ function ticketView(v) {
       <img class="thumb" id="f-thumb" alt=""${image ? html` src="${image}"` : html` hidden`}>
       <p class="muted small" id="f-pages"${note ? '' : html` hidden`}>${note}</p>
       <label class="btn" for="f-image">${icon('upload')}<span>${t('edit.ticket.replaceImage')}</span></label>
-      <input class="visually-hidden" id="f-image" type="file" accept="${TICKET_FILES}"></div>`,
-  )}
-  ${ticket ? html`<button class="btn btn--quiet" type="button" data-action="edit-delete" data-arg="ticket:${v.id}" style="align-self:flex-start">${icon('trash')}<span>${t('edit.deleteTicket')}</span></button>` : ''}`;
+      <input class="visually-hidden" id="f-image" type="file" accept="${TICKET_FILES}"></div>
+    ${ticket ? deleteButton(`ticket:${v.id}`, t('edit.deleteTicket')) : ''}`,
+  )}`,
+  );
 }
 
 /** @param {string} part  "trip" or a language code */
@@ -379,10 +411,12 @@ function jsonView(part) {
   const payload = draft();
   const value = part === 'trip' ? payload.trip : (payload.locales[part] ?? {});
   const title = part === 'trip' ? t('edit.json.trip') : t('edit.json.texts', { lang: langName(part) });
-  return html`${back()}${hello(title, t('edit.json.note'), t('edit.more'))}
+  return screen(
+    editHeader(title, t('edit.json.note'), t('edit.more'), 'edit.json.apply'),
+    html`
   <form class="card form" id="edit-form" data-form="json" novalidate>
-    ${saveBar(t('edit.json.apply'))}
-    <textarea class="json" id="f-json" name="json" spellcheck="false" autocapitalize="none" autocomplete="off">${JSON.stringify(value, null, 2)}</textarea></form>`;
+    <textarea class="json" id="f-json" name="json" spellcheck="false" autocapitalize="none" autocomplete="off">${JSON.stringify(value, null, 2)}</textarea></form>`,
+  );
 }
 
 /** The Edit tab: the innermost open editor screen, or the overview. */

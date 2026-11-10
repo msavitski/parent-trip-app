@@ -5,7 +5,7 @@
  * @import { SheetType, Tab } from '../../types/app'
  */
 import { discardDraft, readImage, saveDraft } from './admin/draft.js';
-import { applyForm, deleteFromDraft, pagesNote, parseEditArg, rememberFold, toggleHidden } from './admin/editor.js';
+import { applyForm, deleteFromDraft, pagesNote, parseEditArg, toggleHidden } from './admin/editor.js';
 import { pickResult, searchMap, useMapPlace } from './admin/map.js';
 import { publish } from './admin/publish.js';
 import {
@@ -17,6 +17,7 @@ import {
   refreshWeather,
   render,
   retargetSheet,
+  scrollToTop,
   setTab,
   showScreen,
   start,
@@ -37,8 +38,9 @@ import {
   saveTicked,
   ticked,
 } from './ui/screens.js';
+import { rememberFold } from './ui/components.js';
 import { moneyCalc, zoomTicket } from './ui/sheets.js';
-import { speak, store } from './util.js';
+import { fitTextareas, speak, store } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
 
 /** @param {string} id */
@@ -164,11 +166,13 @@ const ACTIONS = {
   },
 
   discard: (el) =>
+    // the button keeps its size (it is round, in the header): it turns red, and the header's subtitle line says to
+    // press again, then goes back to what it said
     confirmTwice(
       el,
-      /** @type {HTMLElement} */ (el.querySelector('span')),
+      /** @type {HTMLElement} */ (byId('bar').querySelector('.date')),
       'edit.discardConfirm',
-      'edit.discard',
+      'edit.unpublished',
       () => {
         discardDraft();
         state.notice = null;
@@ -188,7 +192,7 @@ const ACTIONS = {
       state.publishing = false;
       useDraft();
       render();
-      window.scrollTo(0, 0);
+      scrollToTop();
     }
   },
 };
@@ -375,14 +379,19 @@ export function listen() {
   document.addEventListener(
     'toggle',
     (event) => {
-      if (event.target instanceof HTMLDetailsElement) rememberFold(event.target);
+      if (event.target instanceof HTMLDetailsElement) {
+        rememberFold(event.target);
+        fitTextareas(event.target); // text boxes in a section that was closed could not be measured yet
+      }
     },
     true,
   );
   document.addEventListener('input', (event) => {
     const el = event.target;
     if (el instanceof HTMLInputElement && el.dataset.money) moneyCalc(el);
+    if (el instanceof HTMLTextAreaElement && el.parentElement) fitTextareas(el.parentElement);
   });
+  addEventListener('resize', () => fitTextareas());
   // the keyboard's check mark (Done) is an Enter key; outside a form it does nothing, so close the keyboard here
   document.addEventListener('keydown', (event) => {
     const el = event.target;

@@ -12,7 +12,7 @@
 import { html, icon } from '../html.js';
 import { baseLang, t } from '../i18n.js';
 import { state } from '../state.js';
-import { sheetHead } from '../ui/components.js';
+import { screen, sheetHeader } from '../ui/components.js';
 
 /** Leaflet, relative to the page. A new version goes into a new folder: the offline worker caches by URL. */
 const LEAFLET = 'vendor/leaflet-1.9.4/';
@@ -54,7 +54,9 @@ export function mapSheet() {
   const typed = document.getElementById('f-address');
   const query = typed instanceof HTMLInputElement ? typed.value.trim() : '';
   const forWeather = isWeather();
-  return html`${sheetHead(t('map.title'))}
+  return screen(
+    sheetHeader(t('map.title')),
+    html`
     <form class="map-search" id="map-search" role="search">
       <input id="map-q" type="search" value="${query}" placeholder="${t('map.search')}" aria-label="${t('map.search')}" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       <button class="btn" type="submit">${icon('search')}<span>${t('map.go')}</span></button></form>
@@ -63,7 +65,8 @@ export function mapSheet() {
     <p class="muted small">${forWeather ? t('map.hintWeather') : t('map.hint')}</p>
     <div class="card map-pick"><p class="map-addr" id="map-addr">${t('map.none')}</p>
       <button class="btn btn--solid" type="button" id="map-use" data-action="map-use" disabled>${icon('check')}<span>${forWeather ? t('map.useSpot') : t('map.use')}</span></button></div>
-    <p class="muted small">${t('map.credit')}</p>`;
+    <p class="muted small">${t('map.credit')}</p>`,
+  );
 }
 
 /** Whether the open map is choosing the spot for a day's weather (not a place's address). */
