@@ -1002,6 +1002,19 @@
       "default": null,
       "description": "For editors only; ignored by the app."
     },
+    "id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Who this trip is. The app sets it when it archives a trip or starts a new one; a phone that sees it change starts with empty checklists (the ticks and own items of the trip before would not fit). Leave it out otherwise."
+    },
     "title": {
       "anyOf": [
         {

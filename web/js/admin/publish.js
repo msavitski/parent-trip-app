@@ -5,20 +5,22 @@
  * 2. Make sure the site still has the trip.enc this app opened; otherwise someone published since
  *    (`trip build`, or the app on another device) and publishing now would undo their changes.
  * 3. Re-encrypt with the same data key (vault.sealTrip): both passwords and every phone keep working.
- * 4. Commit web/trip.enc to the site repository: GitHub Actions deploys it in a minute or two.
+ * 4. Commit web/trip.enc to the site repository: GitHub Actions deploys it in a minute or two. When the past
+ *    trips changed (archive.js), web/archive.enc goes in the same commit, so the two can't disagree.
  * 5. Commit the readable copy (trip.json5, texts, ticket images) to the private repository.
  *
- * Until GitHub Pages serves the new file, this device keeps using it (pendingEnc), so a reload right
- * after publishing doesn't show the old trip.
+ * Until GitHub Pages serves the new file, this device keeps using it (pendingEnc, pendingArchive), so a reload
+ * right after publishing doesn't show the old trip.
  *
- * @import { EditNotice, EncFile, Payload } from '../../../types/app'
+ * @import { ArchiveFile, EditNotice, EncFile, Payload } from '../../../types/app'
  */
 import { t } from '../i18n.js';
 import { state } from '../state.js';
 import { bigStore } from '../util.js';
 import { fromBase64, sealTrip } from '../vault.js';
+import { archivePath, sealForPublish, tripName } from './archive.js';
 import { commitMessage, describeChanges } from './changes.js';
-import { dropUnusedEditorKeys, dropUnusedImages } from './draft.js';
+import { archiveChanged, dropUnusedEditorKeys, dropUnusedImages } from './draft.js';
 import { GitHubError, commit, readBranch } from './github.js';
 import { validate } from './validate.js';
 
@@ -29,7 +31,10 @@ const TRIP_HEADER =
 const PENDING = 'admin-pending';
 const PENDING_HOURS = 24;
 
-/** @typedef {{ at: number, enc: EncFile, replaced: string[] }} Pending  replaced: IVs of the versions it supersedes */
+/**
+ * @typedef {{ at: number, enc: EncFile, replaced: string[], archive?: ArchiveFile }} Pending
+ *   replaced: IVs of the versions it supersedes; archive: the archive.enc published with it (the site may still serve an older one)
+ */
 
 /**
  * The trip.enc to use. Right after publishing, GitHub Pages still serves an older version for a few
@@ -50,6 +55,18 @@ export async function pendingEnc(fetched) {
   }
   await bigStore.set(PENDING, null);
   return fetched;
+}
+
+/**
+ * The archive.enc published from this device that the site may not serve yet (null when pendingEnc is not in use,
+ * or the archive wasn't published). Call after pendingEnc.
+ * @returns {Promise<ArchiveFile | null>}
+ */
+export async function pendingArchive() {
+  if (!state.pending) return null;
+  /** @type {Pending | null} */
+  const pending = await bigStore.get(PENDING);
+  return pending?.archive ?? null;
 }
 
 /** @param {unknown} error */
@@ -87,6 +104,9 @@ function readableFiles(draft, before, folder) {
   }
   for (const path of Object.keys(before.images))
     if (!(path in draft.images)) files.push({ path: at(path), content: null });
+  // another trip may have fewer languages than the one it replaces (the text files of the others must go)
+  for (const lang of Object.keys(before.locales))
+    if (!(lang in draft.locales)) files.push({ path: at(`locales/${lang}/trip.json`), content: null });
   return files;
 }
 
@@ -110,7 +130,16 @@ export async function publish() {
 
   // Commit messages say what changed (they are for the repositories' history, not for the app's screens). The site
   // repository is public, so its messages only name the kind of change; the private one gets names and texts.
-  const changes = describeChanges(original, draft);
+  // A switch to another trip changes everything: say that, not every day, place and ticket of it.
+  const switched = (original.trip.id ?? null) !== (draft.trip.id ?? null);
+  const withArchive = archiveChanged();
+  const changes = switched ? [] : describeChanges(original, draft);
+  if (switched || withArchive) {
+    changes.push({
+      plain: 'Trips changed',
+      detail: `Trips: now "${tripName(draft)}"; archive: ${state.archive.map((a) => `"${a.name}"`).join(', ') || 'empty'}`,
+    });
+  }
   const siteMessage = commitMessage(changes.map((c) => c.plain));
   const dataMessage = commitMessage(
     changes.map((c) => c.plain),
@@ -128,22 +157,34 @@ export async function publish() {
     const site = await siteStart;
     if (site.file && JSON.parse(site.file).iv !== enc.iv) return { kind: 'error', text: t('edit.err.conflict') };
 
-    const sealed = await sealTrip(draft, opened, enc);
-    await commit(
-      config,
-      config.site.repo,
-      config.site.branch,
-      [{ path: config.site.path, content: JSON.stringify(sealed) }],
-      siteMessage,
-      siteStart,
+    // the past trips, when they changed: archive.enc, and (the first time) the archive key in the admin settings
+    const archive = withArchive ? await sealForPublish() : null;
+    const sealed = await sealTrip(
+      draft,
+      archive?.adminChanged ? { ...opened, admin: { ...opened.admin, archiveKey: archive.key } } : opened,
+      enc,
+      !!archive?.adminChanged,
     );
+    /** @type {{ path: string, content: string }[]} */
+    const files = [{ path: config.site.path, content: JSON.stringify(sealed) }];
+    if (archive) files.push({ path: archivePath(config.site.path), content: JSON.stringify(archive.file) });
+    await commit(config, config.site.repo, config.site.branch, files, siteMessage, siteStart);
 
     // published: this is now the trip as it is online
     /** @type {Pending | null} */
     const previous = await bigStore.get(PENDING);
-    const replaced = [...(previous?.enc.iv === enc.iv ? previous.replaced : []), enc.iv];
-    await bigStore.set(PENDING, { at: Date.now(), enc: sealed, replaced });
+    const mine = previous?.enc.iv === enc.iv ? previous : null;
+    const replaced = [...(mine?.replaced ?? []), enc.iv];
+    const published = archive?.file ?? mine?.archive;
+    await bigStore.set(PENDING, {
+      at: Date.now(),
+      enc: sealed,
+      replaced,
+      ...(published ? { archive: published } : {}),
+    });
     await bigStore.set('admin-draft', null);
+    if (archive && opened.admin) opened.admin.archiveKey = archive.key; // only now: the key is in the published trip.enc
+    state.archiveOriginal = [...state.archive];
     state.enc = sealed;
     state.original = structuredClone(draft);
     state.pending = true;

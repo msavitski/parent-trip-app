@@ -12,8 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  # Publishing from the app commits only web/trip.enc. Nothing in it can break the code checks below (installing
-  # Python and Node and running every check took minutes), so a push that changes nothing else goes straight to deploy.
+  # Publishing from the app commits only web/trip.enc (and web/archive.enc, the admin's past trips). Nothing in them
+  # can break the code checks below (installing Python and Node and running every check took minutes), so a push that
+  # changes nothing else goes straight to deploy.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -30,7 +31,8 @@ jobs:
           code=true
           if [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
-            if [ "$changed" = "web/trip.enc" ]; then code=false; fi
+            others=$(printf '%s\n' "$changed" | grep -vxE 'web/(trip|archive)\.enc' || true)
+            if [ -n "$changed" ] && [ -z "$others" ]; then code=false; fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "code changed: $code"

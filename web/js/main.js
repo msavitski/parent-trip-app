@@ -8,6 +8,7 @@ import { applyLanguage, showScreen, start } from './app.js';
 import { loadApp, loadLoginLangs, pickLoginLang } from './i18n.js';
 import { state } from './state.js';
 import { loginScreen, messageScreen } from './ui/screens.js';
+import { applyTextSize } from './util.js';
 import { deriveKey, fetchEnc, openTrip, remember, savedKey } from './vault.js';
 
 // the modules loaded: tells the fallback script in index.html not to show its reload button
@@ -15,6 +16,7 @@ document.documentElement.dataset.ready = '1';
 
 async function boot() {
   listen();
+  applyTextSize();
   applyLanguage(await pickLoginLang());
   await loadApp('en');
   if (!globalThis.crypto?.subtle) return showScreen(messageScreen('login.unsupported'));

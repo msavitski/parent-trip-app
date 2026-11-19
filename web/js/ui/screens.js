@@ -5,7 +5,7 @@ import { html, icon } from '../html.js';
 import { cap, fmt, loginLangs, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { canSpeak, currentHotelId, currentTrip, daysBetween, todayIndex, tripToday } from '../trip.js';
-import { mapUrl, store, telUrl } from '../util.js';
+import { mapUrl, store, TEXT_SIZES, telUrl, textSize } from '../util.js';
 import {
   dayCard,
   fold,
@@ -191,8 +191,8 @@ function lists() {
 function phrases() {
   const speechLang = state.settings.speechLang;
   return screen(
-    pageHeader(t('phrases.title'), t('phrases.sub')),
-    html`<div class="stack">${currentTrip().phrases.map(
+    pageHeader(t('phrases.title'), ''),
+    html`<p class="muted">${t('phrases.sub')}</p><div class="stack">${currentTrip().phrases.map(
       (p, i) => html`<article class="card phrase">
     <p class="ph-mean">${tr(p.meaning)}</p>
     <p class="ph-local" lang="${speechLang}">${p.local}</p>
@@ -239,6 +239,12 @@ function help() {
       ? html`<section class="section"><h2>${t('help.language')}</h2>${langChips(state.languages)}</section>`
       : ''
   }
+  <section class="section"><h2>${t('help.textSize')}</h2><div class="card info">
+    <p class="muted">${t('help.textSizeNote')}</p>
+    <div class="actions text-size" role="group" aria-label="${t('help.textSize')}">
+      <button class="btn" type="button" data-action="text-size" data-arg="-1" aria-label="${t('help.textSmaller')}"${textSize() <= 0 ? html` disabled` : ''}>${icon('minus')}</button>
+      <output class="text-size-level">${TEXT_SIZES[textSize()]}%</output>
+      <button class="btn" type="button" data-action="text-size" data-arg="1" aria-label="${t('help.textLarger')}"${textSize() >= TEXT_SIZES.length - 1 ? html` disabled` : ''}>${icon('plus')}</button></div></div></section>
   <section class="section"><h2>${t('help.phone')}</h2><div class="card info">
     <p class="muted">${t('help.forgetNote')}</p>
     <div class="actions"><button class="btn btn--quiet" type="button" data-action="forget">${icon('lock')}<span>${t('help.forget')}</span></button></div></div></section>`,

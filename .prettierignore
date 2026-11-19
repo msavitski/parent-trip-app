@@ -2,6 +2,7 @@
 schema/
 types/trip.d.ts
 web/trip.enc
+web/archive.enc
 
 # third-party (pdf.js), copied as published
 web/vendor/

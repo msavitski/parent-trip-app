@@ -19,7 +19,11 @@
  * The phone keeps the password's derived key (not the password) in localStorage "trip:key", so the app
  * opens offline without asking again.
  *
- * @import { AdminConfig, EncFile, Opened, Payload } from '../../types/app'
+ * web/archive.enc (admin mode only, see admin/archive.js): the past trips, { v: 1, iv, data } with
+ * data = AES-256-GCM(archive key, { trips }). The archive key is a random key kept in the admin settings
+ * (`archiveKey`), so only the admin password opens it, and it survives a change of the admin password.
+ *
+ * @import { AdminConfig, ArchivedTrip, ArchiveFile, EncFile, Opened, Payload } from '../../types/app'
  */
 import { forFamily, hasHiddenPlans } from './trip.js';
 import { bigStore, store } from './util.js';
@@ -94,8 +98,8 @@ async function encrypt(rawKey, plain) {
 /** @param {Uint8Array} bytes */
 const parse = (bytes) => JSON.parse(new TextDecoder().decode(bytes));
 
-/** @param {Payload} payload */
-const encode = (payload) => new TextEncoder().encode(JSON.stringify(payload));
+/** @param {unknown} value */
+const encode = (value) => new TextEncoder().encode(JSON.stringify(value));
 
 /**
  * The payload as trip.enc v3 keeps it (the same as tools/…/bundle.py split): the family part
@@ -167,12 +171,14 @@ export async function openTrip(rawKey, enc) {
  * phone's saved key keep working (admin mode's Publish). Only for two-password trips (v2, v3).
  * The payload is split (splitPayload): the family part is encrypted with the data key and the hidden
  * part with the admin key, so the file is v3 with hidden days that have a plan, and v2 without.
+ * `adminChanged`: opened.admin has new settings (the archive key): they are sealed again with the admin key.
  * @param {Payload} payload
  * @param {Opened} opened
  * @param {EncFile} enc
+ * @param {boolean} [adminChanged]
  * @returns {Promise<EncFile>}
  */
-export async function sealTrip(payload, opened, enc) {
+export async function sealTrip(payload, opened, enc, adminChanged = false) {
   if (!TWO_PASSWORDS.includes(enc.v)) throw new Error('Publishing needs a two-password trip.enc (trip password admin)');
   const { family, hidden } = splitPayload(payload);
   if (hidden && !opened.adminKey) throw new Error('Only the admin password can publish hidden days');
@@ -180,7 +186,34 @@ export async function sealTrip(payload, opened, enc) {
   const sealed = { ...enc, v: hidden ? 3 : 2, ...(await encrypt(opened.dataKey, encode(family))) };
   delete sealed.hidden;
   if (hidden && opened.adminKey) sealed.hidden = await encrypt(opened.adminKey, encode(hidden));
+  if (adminChanged && opened.admin && opened.adminKey)
+    sealed.admin = await encrypt(opened.adminKey, encode(opened.admin));
   return sealed;
+}
+
+/** A new random key for archive.enc, base64. */
+export const newArchiveKey = () => toBase64(crypto.getRandomValues(new Uint8Array(KEY_BYTES)));
+
+/**
+ * The past trips as archive.enc keeps them.
+ * @param {ArchivedTrip[]} trips
+ * @param {string} archiveKey  base64
+ * @returns {Promise<ArchiveFile>}
+ */
+export async function sealArchive(trips, archiveKey) {
+  return { v: 1, ...(await encrypt(fromBase64(archiveKey), encode({ trips }))) };
+}
+
+/**
+ * The past trips in an archive.enc, or null if the key doesn't open it.
+ * @param {ArchiveFile} file
+ * @param {string} archiveKey  base64
+ * @returns {Promise<ArchivedTrip[] | null>}
+ */
+export async function openArchive(file, archiveKey) {
+  const plain = await decrypt(fromBase64(archiveKey), file.iv, file.data);
+  const body = plain && parse(plain);
+  return Array.isArray(body?.trips) ? body.trips : null;
 }
 
 /**

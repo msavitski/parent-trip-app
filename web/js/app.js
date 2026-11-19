@@ -3,10 +3,11 @@
  *
  * @import { EditView, Opened, SheetType, Tab } from '../../types/app'
  */
+import { loadArchive } from './admin/archive.js';
 import { discardDraft, isDirty, loadDraft } from './admin/draft.js';
 import { editScreen } from './admin/editor.js';
 import { startMap, stopMap } from './admin/map.js';
-import { pendingEnc } from './admin/publish.js';
+import { pendingArchive, pendingEnc } from './admin/publish.js';
 import { tokenAlert, tokenExpiry } from './admin/token.js';
 import { html, icon, mount } from './html.js';
 import { loadApp, pickLang, setLang, t, tr } from './i18n.js';
@@ -14,7 +15,7 @@ import { state } from './state.js';
 import { forFamily, initTrip } from './trip.js';
 import { messageScreen, SCREENS } from './ui/screens.js';
 import { KEEP_AWAKE, listenPinch, renderSheet } from './ui/sheets.js';
-import { fitTextareas, keepAwake, stopSpeaking } from './util.js';
+import { fitTextareas, keepAwake, stopSpeaking, store } from './util.js';
 import { fetchEnc } from './vault.js';
 import { updateWeather } from './weather.js';
 
@@ -29,7 +30,30 @@ const sheetEl = byId('sheet');
 const sheetBar = byId('sheet-bar');
 const sheetPage = byId('sheet-page');
 const sheetView = byId('sheet-view');
+const appEl = byId('app');
 listenPinch(sheetEl);
+
+/**
+ * Keep the shell above the on-screen keyboard. Chrome on Android shrinks the page for it (the viewport meta in
+ * index.html asks for that, so the shell shrinks with it). iOS Safari never does: the page keeps its full height and
+ * the keyboard covers the bottom of it, so there the shell follows the visual viewport (what is really visible), and
+ * the field being typed in is scrolled into view.
+ */
+function fitShell() {
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+  const fit = () => {
+    const covered = viewport.height < innerHeight - 1;
+    appEl.style.height = covered ? `${viewport.height}px` : '';
+    appEl.style.transform = covered && viewport.offsetTop ? `translateY(${viewport.offsetTop}px)` : '';
+    const typing = document.activeElement;
+    if (covered && (typing instanceof HTMLInputElement || typing instanceof HTMLTextAreaElement))
+      typing.scrollIntoView({ block: 'nearest' });
+  };
+  viewport.addEventListener('resize', fit);
+  viewport.addEventListener('scroll', fit);
+}
+fitShell();
 
 /** Back to the top of the page (a new screen opens at its top). */
 export const scrollToTop = () => {
@@ -74,7 +98,7 @@ export function render() {
     showPage(alert ? { head: screen.head, body: html`${alert}${screen.body}` } : screen);
   } catch (error) {
     console.error(error);
-    showScreen(messageScreen('error.generic', true));
+    showError();
   }
   for (const b of tabsEl.querySelectorAll('[data-action="tab"]')) {
     b.setAttribute('aria-current', b.getAttribute('data-arg') === state.tab ? 'page' : 'false');
@@ -90,6 +114,15 @@ export function showScreen(content) {
   tabsEl.hidden = true;
   bar.hidden = true;
   mount(view, content);
+}
+
+/**
+ * Something broke while drawing: the message replaces the page, but the tab bar stays, so the other tabs (Help, with
+ * the emergency numbers) can still be opened, and the next successful render() draws a page again.
+ */
+function showError() {
+  bar.hidden = true;
+  mount(view, messageScreen('error.generic', true));
 }
 
 /** Switch language: words, dates, title and tab bar. @param {string} lang */
@@ -181,6 +214,17 @@ export function useDraft() {
   if (state.draft) initTrip(structuredClone(state.draft));
 }
 
+/**
+ * Admin: the draft became another trip (archived and started anew, or switched to a past one): show it, with the
+ * interface words of its languages (it may have others than the trip before), from its first day.
+ */
+export async function useOtherTrip() {
+  useDraft();
+  state.dayOpen = null;
+  await Promise.all(state.languages.map(loadApp));
+  applyLanguage(pickLang());
+}
+
 /** Open a day in the Days tab (also from Today's list of days before the trip). @param {number} index */
 export function openDay(index) {
   state.tab = 'days';
@@ -218,6 +262,8 @@ export function showSheet() {
   if (top?.type !== 'map') stopMap();
   if (!top) {
     sheetEl.hidden = true;
+    bar.inert = false;
+    page.inert = false;
     sheetBar.innerHTML = '';
     sheetView.innerHTML = '';
     keepAwake(false);
@@ -235,10 +281,13 @@ export function showSheet() {
     console.error(error);
     state.sheets.length = 0;
     showSheet();
-    showScreen(messageScreen('error.generic', true));
+    showError();
     return;
   }
   sheetEl.hidden = false;
+  // the page under the sheet can't be reached by Tab or a screen reader (the tab bar stays: a tap on a tab closes the sheet)
+  bar.inert = true;
+  page.inert = true;
   keepAwake(KEEP_AWAKE.includes(top.type));
   sheetBar.querySelector('button')?.focus({ preventScroll: true });
   if (top.type === 'map') startMap();
@@ -310,6 +359,19 @@ function watch() {
 }
 
 /**
+ * A phone that finds another trip than it had (the admin switched trips) starts with empty checklists: the ticks and
+ * the own items of the trip before would not fit this one, even under the same list names. A trip without an id
+ * (one that never was archived or switched) changes nothing.
+ * @param {string | null} id  the published trip's id
+ */
+function forgetOtherTrip(id) {
+  const known = store.get('tripId', /** @type {string | null} */ (null));
+  if (id === known) return;
+  store.clearLists();
+  store.set('tripId', id);
+}
+
+/**
  * Start the app with an opened trip. The admin sees (and edits) a draft copy of everything; the family
  * sees hidden days as "Plan coming later". The family password only decrypts its own part of trip.enc,
  * which already is forFamily's result; it still matters for a trip.enc made before that (0.0.4).
@@ -318,9 +380,13 @@ function watch() {
 export async function start(opened) {
   state.opened = opened;
   state.role = opened.role;
+  forgetOtherTrip(opened.payload.trip.id ?? null);
   if (opened.role === 'admin') {
     state.original = structuredClone(opened.payload);
-    state.draft = (await loadDraft()) ?? structuredClone(opened.payload);
+    // the past trips (archive.enc) and the unpublished draft, which may hold changes to them
+    const [, saved] = await Promise.all([loadArchive(await pendingArchive()), loadDraft()]);
+    state.draft = saved?.payload ?? structuredClone(opened.payload);
+    if (saved?.archive) state.archive = saved.archive;
   }
   try {
     initTrip(structuredClone(state.draft ?? forFamily(opened.payload)));

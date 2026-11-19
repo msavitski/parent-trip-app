@@ -232,6 +232,14 @@ class Phrase(Model):
 
 class Trip(Model):
     schema_: str | None = Field(default=None, alias="$schema", description="For editors only; ignored by the app.")
+    id: Id | None = Field(
+        default=None,
+        description=(
+            "Who this trip is. The app sets it when it archives a trip or starts a new one; a phone that sees it "
+            "change starts with empty checklists (the ticks and own items of the trip before would not fit). "
+            "Leave it out otherwise."
+        ),
+    )
     title: TextRef
     welcome: TextRef | None = Field(
         default=None, description="A greeting on Today before the trip starts (Day 0), e.g. who to call, what to pack."
