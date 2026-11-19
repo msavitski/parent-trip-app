@@ -3,7 +3,7 @@
  * without import cycles. Only plain data lives here; behaviour lives in the modules that use it.
  *
  * @import { Settings, Trip } from '../../types/trip'
- * @import { EditNotice, EditView, EncFile, Opened, Payload, Role, Sheet, Strings, Tab, TripDay } from '../../types/app'
+ * @import { ArchivedTrip, EditNotice, EditView, EncFile, Opened, Payload, Role, Sheet, Strings, Tab, TripDay } from '../../types/app'
  */
 
 export const state = {
@@ -16,6 +16,11 @@ export const state = {
   /** Admin: the trip as published, and the edited copy the screens show. */
   original: /** @type {Payload | null} */ (null),
   draft: /** @type {Payload | null} */ (null),
+  /** Admin: the past trips (archive.enc, opened) as they are now in the draft, and as they are published. */
+  archive: /** @type {ArchivedTrip[]} */ ([]),
+  archiveOriginal: /** @type {ArchivedTrip[]} */ ([]),
+  /** Admin: whether the archive could be read: 'ok', 'offline' (no internet and none saved), 'locked' (can't be opened). */
+  archiveStatus: /** @type {'ok' | 'offline' | 'locked'} */ ('ok'),
   /** Admin: screens open inside the Edit tab, innermost last (Back closes them). */
   edit: /** @type {EditView[]} */ ([]),
   /** Admin: what the Edit tab says after Publish. */

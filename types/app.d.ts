@@ -44,6 +44,8 @@ export interface AdminConfig {
   site?: RepoTarget;
   /** The private repository with the readable trip data. */
   data?: RepoTarget;
+  /** The key of web/archive.enc (the past trips), base64. Made by the app when the first trip is archived. */
+  archiveKey?: string;
 }
 
 /** trip.enc opened with one password. The keys stay in memory only. */
@@ -66,7 +68,9 @@ export type EditView =
   /** id "": a new ticket. image: chosen but not saved yet */
   | { view: 'ticket'; id: string; image?: TicketImage }
   /** "trip", or a language code for that language's trip texts */
-  | { view: 'json'; part: string };
+  | { view: 'json'; part: string }
+  /** id "": archive this trip and start a new one; otherwise a trip from the archive */
+  | { view: 'trip'; id: string };
 
 /** A ticket image read from a file in the Edit tab. */
 export interface TicketImage {
@@ -75,6 +79,24 @@ export interface TicketImage {
   dataUrl: string;
   /** Made from a PDF: how many of its pages are in the image. */
   pages?: { kept: number; total: number };
+}
+
+/** A trip put away in web/archive.enc: only the admin password can open it. */
+export interface ArchivedTrip {
+  /** The trip's own id (`trip.id`). */
+  id: string;
+  /** Its title in the first language, and the day it was archived ("2026-11-12"), to tell them apart in a list. */
+  name: string;
+  archivedAt: string;
+  /** The whole trip, hidden days and ticket images included. */
+  payload: Payload;
+}
+
+/** web/archive.enc: AES-256-GCM of `{ trips: ArchivedTrip[] }` with the archive key (admin settings). */
+export interface ArchiveFile {
+  v: number;
+  iv: string;
+  data: string;
 }
 
 /** Something to fix before publishing. */

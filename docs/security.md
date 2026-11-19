@@ -30,6 +30,32 @@ Both slots use the file's one salt. A phone keeps PBKDF2(family password), which
 as it opened a v1 file, so **upgrading to two passwords doesn't log any phone out**. The family password can't open
 the admin settings or the hidden days; the admin password opens everything.
 
+## Past trips: the archive
+
+The site shows one trip. The admin can put it away and keep several past trips (Edit → Trips). They live in a second
+file, `web/archive.enc`, which only admin mode ever reads:
+
+| Part                  | Encrypted with           | Contains                                                                      |
+| --------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `archive.enc`         | a random **archive key** | `{ trips: [...] }`: every past trip whole (hidden days and ticket images too) |
+| `admin` in `trip.enc` | the admin key            | the admin settings, now also `archiveKey`                                     |
+
+- The file is public, like `trip.enc`, but nothing outside the admin settings holds its key, so the family password
+  can't open it and neither can anyone who downloads the site. The family's phones never request it, the offline
+  worker never caches it, and it is not in `trip.enc`, so past trips cost them no download.
+- The archive key is made by the app the first time a trip is archived, and is written into `trip.enc` in the same
+  commit as `archive.enc`. Because it sits in the admin settings, it **survives `trip password admin`** (the settings
+  are kept) and `trip build`. It is **lost** if the admin settings are lost: opening with the family password to
+  recover from a forgotten admin password starts the settings empty. The Trips section then says the archive can't be
+  opened. The old files are still on GitHub (in `archive.enc` and its history), but only the old key opens them, so
+  keep the admin password safe.
+- Past trips are also in the history of the private data repository, because publishing writes the current trip
+  there, and each switch replaces it. `trip unpack` unpacks only the current trip.
+- The site repository is public, so its commit messages for an archive change say only "Trips changed". The private
+  repository's say which trip is current.
+- A phone that finds another trip than before (the trip's `id` changed) clears its checklists, so the ticks of the
+  trip before don't show on this one.
+
 ## What it protects against
 
 - Anyone who finds the site or downloads `trip.enc`: without a password the file is unreadable.

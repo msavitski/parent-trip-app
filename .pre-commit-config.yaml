@@ -16,7 +16,7 @@ repos:
         entry: npx --no-install prettier --check --ignore-unknown
         language: system
         types: [text]
-        exclude: ^(schema/|types/trip\.d\.ts|example/|web/trip\.enc|package-lock\.json)
+        exclude: ^(schema/|types/trip\.d\.ts|example/|web/trip\.enc|web/archive\.enc|package-lock\.json)
 
       - id: eslint
         name: eslint

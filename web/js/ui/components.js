@@ -38,15 +38,15 @@ export const screen = (head, body) => ({ head, body });
  * @param {string} [sub]  the line under the title; when there is none the line is still kept, empty, so that the header
  *   is the same height on every screen and nothing below it moves when the screen changes
  * @param {string} [eyebrow]  defaults to the trip's title
- * @param {{ back?: string, backIcon?: string, action?: Html, after?: Html }} [options]
+ * @param {{ back?: string, backIcon?: string, action?: Html, after?: Html, titleId?: string }} [options]
  *   back: the Back button's label (it is drawn as an icon, backIcon: 'left' or 'x'); action: a button at the end of
- *   the row (Save); after: under the row (an error)
+ *   the row (Save); after: under the row (an error); titleId: an id for the title (a dialog is named by it)
  */
-export function pageHeader(big, sub, eyebrow, { back, backIcon = 'left', action, after } = {}) {
+export function pageHeader(big, sub, eyebrow, { back, backIcon = 'left', action, after, titleId } = {}) {
   return html`<div class="head"><div class="head-row">
     <div class="head-text">
     <p class="eyebrow"><span>${eyebrow ?? tr(currentTrip().title)}</span>${state.settings.demoTodayIsDay ? html`<span class="demo">${t('badge.demo')}</span>` : ''}</p>
-    <h1 class="big">${big}</h1><p class="date">${sub || '\u00a0'}</p></div>${action ? html`<div class="head-actions">${action}</div>` : ''}${
+    <h1 class="big"${titleId ? html` id="${titleId}"` : ''}>${big}</h1><p class="date">${sub || '\u00a0'}</p></div>${action ? html`<div class="head-actions">${action}</div>` : ''}${
       back
         ? html`<button class="back" type="button" data-action="back" aria-label="${back}" title="${back}">${icon(backIcon)}</button>`
         : ''
@@ -54,16 +54,30 @@ export function pageHeader(big, sub, eyebrow, { back, backIcon = 'left', action,
 }
 
 /**
+ * What was saved of which collapsible sections are open or closed.
+ * @returns {Record<string, boolean>}
+ */
+const savedFolds = () => {
+  const saved = /** @type {unknown} */ (store.get('folds', null));
+  return saved && typeof saved === 'object' ? /** @type {Record<string, boolean>} */ (saved) : {};
+};
+
+/**
  * Which collapsible sections are open or closed. Kept on the phone: a section closed once stays closed, the next
  * time and on the next screen that has it.
- * @type {Record<string, boolean>}
  */
-const folds = store.get('folds', {});
+let folds = savedFolds();
 
-/** A section was opened or closed: remember it. @param {HTMLDetailsElement} el */
+/**
+ * A section was opened or closed: remember it. Only a change from how the section was drawn is a choice: a section
+ * drawn open fires a toggle of its own when it appears, and that must not turn its default into the person's choice.
+ * @param {HTMLDetailsElement} el
+ */
 export function rememberFold(el) {
-  if (!el.dataset.fold) return;
-  folds[el.dataset.fold] = el.open;
+  const id = el.dataset.fold;
+  if (!id || String(el.open) === el.dataset.drawn) return;
+  el.dataset.drawn = String(el.open);
+  folds = { ...savedFolds(), [id]: el.open }; // read again first: another tab of this site may have kept its own choices
   store.set('folds', folds);
 }
 
@@ -77,10 +91,12 @@ export function rememberFold(el) {
  *   open: whether it starts open, until the person has chosen; count: a small number or text after the heading (and
  *   countId, an id for it, when something updates it); list: the body is rows (they sit in the card, divided by lines)
  */
-export const fold = (id, title, body, { open = false, count, countId, list = false } = {}) =>
-  html`<details class="fold${list ? ' fold--list' : ''}" data-fold="${id}"${(folds[id] ?? open) ? html` open` : ''}><summary><h2>${title}</h2>${
+export function fold(id, title, body, { open = false, count, countId, list = false } = {}) {
+  const shown = folds[id] ?? open;
+  return html`<details class="fold${list ? ' fold--list' : ''}" data-fold="${id}" data-drawn="${shown}"${shown ? html` open` : ''}><summary><h2>${title}</h2>${
     count === undefined ? '' : html`<span class="fold-count"${countId ? html` id="${countId}"` : ''}>${count}</span>`
   }${icon('chev', 'ic chev')}</summary><div class="fold-body">${body}</div></details>`;
+}
 
 /** @param {string} text */
 export const noteBox = (text) => html`<p class="note">${icon('info')}<span>${text}</span></p>`;
@@ -224,7 +240,8 @@ export const person = (name, sub, phone) => html`<div class="card person">
   <a class="btn btn--solid" href="${telUrl(phone)}">${icon('phone')}${t('action.call')}</a></div>`;
 
 /** The header of a full-screen sheet: the same as any page's, with a Close button (the Back button, drawn as a cross). @param {string} title */
-export const sheetHeader = (title) => pageHeader(title, '', undefined, { back: t('action.close'), backIcon: 'x' });
+export const sheetHeader = (title) =>
+  pageHeader(title, '', undefined, { back: t('action.close'), backIcon: 'x', titleId: 'sheet-title' });
 
 /* ---------- weather ---------- */
 

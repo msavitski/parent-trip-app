@@ -28,7 +28,19 @@ compiling anything.
 the **tab bar**, in a fixed grid, so the header and the tab bar never move and only the middle scrolls. A **sheet**
 (ticket, money, taxi, phrase, map) covers the header and the page, not the tab bar, with the same parts of its own
 (`#sheet-bar`, `#sheet-page`). The document itself never scrolls, and the page can't be pinched (`user-scalable=no`,
-`touch-action`), so nothing is displaced by zoom; the ticket zooms its own picture.
+`touch-action` on `html`, `.bar` and `.page`), so nothing is displaced by zoom; the ticket zooms its own picture, and
+everyone else has **Text size** on Help (`util.js`: every size is in `rem`, so one font size on `<html>` scales the app).
+
+- While a sheet is open, `#bar` and `#page` are `inert` (Tab and screen readers can't reach the page under it); the tab
+  bar stays live, a tap on a tab closes the sheet. The sheet's bar is a `div` (the page has one banner), and the dialog
+  is named by its title (`aria-labelledby="sheet-title"`).
+- A render error shows its message in the page but leaves the tab bar (`showError()` in `app.js`), so the other tabs,
+  Help with the emergency numbers above all, still open. Only login and the start-up messages (`showScreen`) hide it.
+- The header's subtitle is at most two lines, so it holds a date or a count, not a sentence that has to be read: those
+  go in the page (the note under Phrases, under the JSON editor).
+- On a short screen (a phone turned sideways, `max-height: 32rem`) the header and the tab bar shrink; with the
+  on-screen keyboard the shell follows the visible part of the page (`interactive-widget=resizes-content` for Chrome,
+  `visualViewport` in `fitShell()` for iOS Safari).
 
 Every screen is built as `screen(head, body)` (`ui/components.js`): `head` comes from `pageHeader()` (Back, title, an
 action such as Save, an error line) and is drawn in the bar, `body` is drawn in the page. Tabs, an opened day, sheets
@@ -48,11 +60,12 @@ that decides where the two parts go.
 | `vault.js`          | `trip.enc`: fetch, derive key, decrypt (admin: merge the hidden days), seal, remember the key      |
 | `trip.js`           | Turn the payload into the current trip (demo day, sorted events, family's view); date helpers      |
 | `weather.js`        | Open-Meteo fetch and cache, weather kinds, the clothing rules (`outfit`)                           |
-| `util.js`           | Storage, map/phone links, money formatting, speech, screen wake lock                               |
+| `util.js`           | Storage, map/phone links, money formatting, speech, wake lock, text boxes that grow, text size     |
 | `ui/components.js`  | Shared pieces: `screen`, `pageHeader`, `fold`, timeline, Next sign, tiles, day card, weather card  |
 | `ui/screens.js`     | The five tabs, login and message screens                                                           |
 | `ui/sheets.js`      | Full-screen sheets: taxi card, ticket list, ticket (zoom buttons, pinch), money, phrase            |
 | `admin/editor.js`   | The Edit tab (admin password only): screens and forms, applying them to the draft                  |
+| `admin/archive.js`  | The archive of past trips (`archive.enc`): load, archive and start anew, switch, delete, seal      |
 | `admin/draft.js`    | The edited copy of the trip: text fields ↔ translation keys, images, kept on the device            |
 | `admin/pdf.js`      | A ticket PDF → one image of its pages, with pdf.js (`web/vendor/`) loaded only when needed         |
 | `admin/map.js`      | The place form's "Choose on the map": Leaflet (`web/vendor/`) loaded only when opened              |
@@ -115,8 +128,22 @@ the same time: the site's and the private repository's heads, the check of `trip
 uploads (a few at once; text goes as it is, not base64 inside base64). The private repository is read while the
 site is being committed to, and written only after the site succeeded. That is 10 calls that wait for each other,
 down from 17 in a row (0.0.7). After the commit, GitHub Actions deploys the site: a push that changes only
-`web/trip.enc` skips the code checks (`changes` job in `.github/workflows/site.yml`) and goes straight to deploy;
-the phones see the new trip once Pages serves it, a minute or so later.
+`web/trip.enc` and `web/archive.enc` skips the code checks (`changes` job in `.github/workflows/site.yml`) and goes
+straight to deploy; the phones see the new trip once Pages serves it, a minute or so later.
+
+## The archive (past trips)
+
+The site shows one trip (`trip.enc`). In Edit → Trips the admin can **archive** the current trip and carry on with a
+copy of it for the next one, or **switch** to a past trip (the current one takes its place in the archive), or
+**delete** a past trip. These are changes to the draft like any other: `state.archive` holds the past trips
+(`admin/archive.js`), `isDirty()` counts it, a draft kept on the device keeps it, Discard puts it back, and Publish
+writes `web/archive.enc` in the same commit as `web/trip.enc`. `archive.enc` is opened with a key kept in the admin
+settings (see [security](security.md)); only admin mode fetches it, always live (the worker never caches it), and
+a copy of the one just published is kept like the pending `trip.enc`, until the site serves it.
+
+Each trip has an optional `id` (`trip.id`, set by the app when it archives or switches). A phone remembers the id it
+last saw (`trip:tripId`) and clears its ticks and own items when it changes, since lists of different trips often
+share names (`packing`) but not items.
 
 `activate` deletes only caches named `our-trip-*`: other sites on the same `github.io` origin keep theirs.
 
@@ -134,6 +161,8 @@ fetch time under its `"lat,lon"`; the older single-place shape is read as one of
 | `trip:checks:<id>` | Ticked items of a checklist                       |
 | `trip:mine:<id>`   | A person's own items of a checklist (this phone)  |
 | `trip:folds`       | Which collapsible sections are open or closed     |
+| `trip:textSize`    | Text size step chosen on Help (0 = the default)   |
+| `trip:tripId`      | The `id` of the trip this phone's ticks are for   |
 
 These names are a compatibility contract with installed phones: renaming them logs everyone out or loses ticks.
 

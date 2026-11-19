@@ -29,11 +29,20 @@ export const store = {
     } catch {}
   },
 
-  /** Remove everything this app saved on the phone, except the chosen language. */
+  /** Forget the ticks and the own items of every checklist: they belong to one trip. */
+  clearLists() {
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('trip:checks:') || k.startsWith('trip:mine:'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  },
+
+  /** Remove everything this app saved on the phone, except the chosen language and text size. */
   clearTrip() {
     try {
       Object.keys(localStorage)
-        .filter((k) => k.startsWith('trip:') && k !== 'trip:lang')
+        .filter((k) => k.startsWith('trip:') && k !== 'trip:lang' && k !== 'trip:textSize')
         .forEach((k) => localStorage.removeItem(k));
     } catch {}
   },
@@ -177,4 +186,27 @@ export function fitTextareas(root = document) {
     box.style.height = 'auto';
     box.style.height = `${box.scrollHeight + box.offsetHeight - box.clientHeight}px`;
   }
+}
+
+/**
+ * The text sizes the Text size buttons on Help step through, in percent of the size the browser uses. The page
+ * can't be pinched (so zoom can't move the header and the tab bar), and this is what takes its place.
+ */
+export const TEXT_SIZES = [100, 115, 130, 150];
+
+/** The saved text size: an index into TEXT_SIZES. */
+export const textSize = () => {
+  const step = Number(store.get('textSize', 0));
+  return Number.isInteger(step) ? Math.min(Math.max(step, 0), TEXT_SIZES.length - 1) : 0;
+};
+
+/** Make the page use the saved text size. Every size in the app is in rem, so this one value scales all of it. */
+export function applyTextSize() {
+  document.documentElement.style.fontSize = `${TEXT_SIZES[textSize()]}%`;
+}
+
+/** Keep a text size (a step of TEXT_SIZES; beyond the ends it stops at the end) and use it. @param {number} step */
+export function setTextSize(step) {
+  store.set('textSize', Math.min(Math.max(step, 0), TEXT_SIZES.length - 1));
+  applyTextSize();
 }

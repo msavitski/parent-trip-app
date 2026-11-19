@@ -14,6 +14,7 @@ import { cap, fmt, meta, t, tr } from '../i18n.js';
 import { state } from '../state.js';
 import { addDays, isoDate, parseDate, ticketsOf, toMin } from '../trip.js';
 import { fold, pageHeader, screen } from '../ui/components.js';
+import { tripDates } from './archive.js';
 import { dropUnusedImages, isDirty, languagesOf, setText, setTicketImage, textIn } from './draft.js';
 import { EVENT_ICONS, realDate } from './validate.js';
 
@@ -126,13 +127,16 @@ const rowButton = (arg, aside, title, lead = '') =>
 /** @param {string} arg @param {string} aside @param {string} title @param {string} [lead] */
 const row = (arg, aside, title, lead = '') => html`<li>${rowButton(arg, aside, title, lead)}</li>`;
 
+/** A day's date short, as in the list of days: "3 Nov" (as written when it is not a real date, see longDate). @param {string} iso */
+const shortDate = (iso) => (realDate(iso) ? fmt.short.format(parseDate(iso)) : iso);
+
 /**
  * A day in the list, with the eye that shows it to the family or hides it.
  * @param {Day} day
  * @param {number} index
  */
 const dayRow = (day, index) =>
-  html`<li class="edit-item${day.hidden ? ' edit-item--hidden' : ''}">${rowButton(`day:${index}`, fmt.short.format(parseDate(day.date)), tr(day.title))}
+  html`<li class="edit-item${day.hidden ? ' edit-item--hidden' : ''}">${rowButton(`day:${index}`, shortDate(day.date), tr(day.title))}
     <button class="eye" type="button" data-action="edit-hide" data-arg="${index}" aria-pressed="${!day.hidden}" aria-label="${t('edit.day.shown')}" title="${t('edit.day.shown')}">${icon(day.hidden ? 'eyeOff' : 'eye')}</button></li>`;
 
 const formError = () => html`<p class="form-err" id="form-err" role="alert" hidden></p>`;
@@ -238,6 +242,7 @@ function home() {
     ${addRow('ticket:', t('edit.addTicket'))}`,
     { count: Object.keys(trip.tickets).length, list: true },
   )}
+  ${tripsSection()}
   ${fold(
     'more',
     t('edit.more'),
@@ -245,6 +250,46 @@ function home() {
     <ul class="edit-list">${row('json:trip', '{ }', t('edit.json.trip'))}${langs().map((l) => row(`json:${l}`, '{ }', t('edit.json.texts', { lang: langName(l) })))}</ul>`,
     { list: true },
   )}`,
+  );
+}
+
+/**
+ * The Trips section of the overview: the past trips (archive.enc: only the admin password opens it), and the way
+ * to put the current one away. When the archive could not be read, a note says why instead.
+ */
+function tripsSection() {
+  const status = state.archiveStatus;
+  const body =
+    status === 'ok'
+      ? html`<p class="muted fold-note">${t('edit.tripsNote')}</p>
+    <ul class="edit-list">${state.archive.map((a) => row(`trip:${a.id}`, a.payload.trip.days?.[0]?.date ?? '', a.name))}</ul>${addRow('trip:', t('edit.tripArchiveNew'))}`
+      : html`<p class="muted fold-note">${t(status === 'offline' ? 'edit.archiveOffline' : 'edit.archiveLocked')}</p>`;
+  return fold('trips', t('edit.trips'), body, { count: state.archive.length, list: true });
+}
+
+/**
+ * A screen of the Trips section: put the current trip away and start a new one (id ""), or a past trip from the
+ * archive, to switch to it or delete it. Every button asks twice, and changes only the draft until Publish.
+ * @param {string} id
+ */
+function tripView(id) {
+  const back = { back: t('edit.back') };
+  const entry = state.archive.find((a) => a.id === id);
+  if (!id) {
+    return screen(
+      pageHeader(t('edit.tripArchiveNew'), '', t('edit.trips'), back),
+      html`<section class="card info"><p>${t('edit.tripArchiveNote')}</p>
+    <div class="actions"><button class="btn btn--solid" type="button" data-action="trip-archive">${icon('suitcase')}<span>${t('edit.tripArchiveButton')}</span></button></div></section>`,
+    );
+  }
+  if (!entry) return home(); // it is gone (switched to, or deleted): the overview, until Back closes this screen
+  return screen(
+    pageHeader(entry.name, tripDates(entry.payload), t('edit.trips'), back),
+    html`<section class="card info"><p>${t('edit.tripArchivedOn', { date: entry.archivedAt })}</p>
+    <p class="muted">${t('edit.tripSwitchNote')}</p>
+    <div class="actions"><button class="btn btn--solid" type="button" data-action="trip-switch" data-arg="${id}">${icon('suitcase')}<span>${t('edit.tripSwitch')}</span></button></div></section>
+  <section class="card info"><p class="muted">${t('edit.tripDeleteNote')}</p>
+    <div class="actions"><button class="btn btn--quiet" type="button" data-action="trip-delete" data-arg="${id}">${icon('trash')}<span>${t('edit.tripDelete')}</span></button></div></section>`,
   );
 }
 
@@ -269,8 +314,12 @@ function weatherField(own) {
       <button class="btn btn--quiet" type="button" data-action="weather-clear"><span>${t('edit.day.weatherClear')}</span></button></div></fieldset>`;
 }
 
-/** A day's date the way the rest of the app writes it: "Tuesday 3 November". @param {string} iso */
-const longDate = (iso) => cap(fmt.long.format(parseDate(iso)));
+/**
+ * A day's date the way the rest of the app writes it: "Tuesday 3 November". A date that is not a real one (the JSON
+ * editor accepts any text) is shown as it is written: formatting it would throw, and the Edit tab is where it is fixed.
+ * @param {string} iso
+ */
+const longDate = (iso) => (realDate(iso) ? cap(fmt.long.format(parseDate(iso))) : iso);
 
 /** @param {number} index  -1 for a new day */
 function dayView(index) {
@@ -299,10 +348,10 @@ function dayView(index) {
       day?.hotel,
       { noneKey: 'edit.day.hotelSame', hint: t('edit.day.hotelHint') },
     )}
-    <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>
-    ${isNew || days.length < 2 ? '' : deleteButton(`day:${index}`, t('edit.deleteDay'))}`,
-    // a new day has nothing but these fields; an existing one is mostly opened to work on its events
-    { id: 'day-details', title: t('edit.day.details'), open: isNew },
+    <label class="field-check"><input type="checkbox" name="hidden"${day?.hidden ? html` checked` : ''}><span>${t('edit.day.hide')}</span></label>`,
+    // a new day has nothing but these fields, so its section is its own (always open until the admin closes it); an
+    // existing one is mostly opened to work on its events, and what the admin chose for it is kept for the next day
+    { id: isNew ? 'day-details-new' : 'day-details', title: t('edit.day.details'), open: isNew },
   )}
   ${
     isNew
@@ -313,7 +362,8 @@ function dayView(index) {
           html`<ul class="edit-list">${sortedEvents(day).map(({ e, j }) => row(`event:${index}:${j}`, e.time, tr(e.title), e.icon))}</ul>${addRow(`event:${index}:-1`, t('edit.addEvent'))}`,
           { open: true, count: day.events.length, list: true },
         )
-  }`,
+  }
+  ${isNew || days.length < 2 ? '' : deleteButton(`day:${index}`, t('edit.deleteDay'))}`,
   );
 }
 
@@ -412,8 +462,9 @@ function jsonView(part) {
   const value = part === 'trip' ? payload.trip : (payload.locales[part] ?? {});
   const title = part === 'trip' ? t('edit.json.trip') : t('edit.json.texts', { lang: langName(part) });
   return screen(
-    editHeader(title, t('edit.json.note'), t('edit.more'), 'edit.json.apply'),
+    editHeader(title, '', t('edit.more'), 'edit.json.apply'),
     html`
+  <p class="muted">${t('edit.json.note')}</p>
   <form class="card form" id="edit-form" data-form="json" novalidate>
     <textarea class="json" id="f-json" name="json" spellcheck="false" autocapitalize="none" autocomplete="off">${JSON.stringify(value, null, 2)}</textarea></form>`,
   );
@@ -434,6 +485,8 @@ export function editScreen() {
       return ticketView(v);
     case 'json':
       return jsonView(v.part);
+    case 'trip':
+      return tripView(v.id);
   }
 }
 
@@ -451,6 +504,7 @@ export function parseEditArg(arg) {
   if (view === 'place') return { view, id: a };
   if (view === 'ticket') return { view, id: a };
   if (view === 'json') return { view, part: a };
+  if (view === 'trip') return { view, id: a };
   return null;
 }
 

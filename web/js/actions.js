@@ -4,6 +4,7 @@
  *
  * @import { SheetType, Tab } from '../../types/app'
  */
+import { archiveAndStartNew, deleteArchived, switchToArchived } from './admin/archive.js';
 import { discardDraft, readImage, saveDraft } from './admin/draft.js';
 import { applyForm, deleteFromDraft, pagesNote, parseEditArg, toggleHidden } from './admin/editor.js';
 import { pickResult, searchMap, useMapPlace } from './admin/map.js';
@@ -22,6 +23,7 @@ import {
   showScreen,
   start,
   useDraft,
+  useOtherTrip,
 } from './app.js';
 import { icon, mount } from './html.js';
 import { t } from './i18n.js';
@@ -40,38 +42,45 @@ import {
 } from './ui/screens.js';
 import { rememberFold } from './ui/components.js';
 import { moneyCalc, zoomTicket } from './ui/sheets.js';
-import { fitTextareas, speak, store } from './util.js';
+import { fitTextareas, setTextSize, speak, store, textSize } from './util.js';
 import { deriveKey, forget, openTrip, remember } from './vault.js';
 
 /** @param {string} id */
 const byId = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
+/** Say something to screen readers (the live region in index.html). @param {string} text */
+const announce = (text) => {
+  byId('live').textContent = text;
+};
+
 /**
- * A button that needs a second tap within 4 seconds (untick a whole list, forget the password).
+ * A button that needs a second tap within 4 seconds (untick a whole list, forget the password). The label says "tap
+ * again…" meanwhile and goes back to what it said; a screen reader is told too, because the label may be somewhere
+ * else than the button (Discard's is in the header).
  * @param {HTMLElement} button
  * @param {HTMLElement} label  the element whose text changes
  * @param {string} confirmKey  text for "tap again…"
- * @param {string} normalKey   text to go back to
  * @param {() => void} onConfirm
  */
-function confirmTwice(button, label, confirmKey, normalKey, onConfirm) {
+function confirmTwice(button, label, confirmKey, onConfirm) {
   if (button.dataset.armed) {
+    announce('');
     onConfirm();
     return;
   }
+  const normal = label.textContent ?? '';
   button.dataset.armed = '1';
   button.classList.add('btn--warn');
   label.textContent = t(confirmKey);
+  announce(t(confirmKey));
   setTimeout(() => {
+    announce('');
     if (!button.isConnected) return;
     delete button.dataset.armed;
     button.classList.remove('btn--warn');
-    label.textContent = t(normalKey);
+    label.textContent = normal;
   }, 4000);
 }
-
-/** What a Delete button says, by what it deletes. @type {Record<string, string>} */
-const DELETE_LABELS = { day: 'edit.deleteDay', event: 'edit.deleteEvent', ticket: 'edit.deleteTicket' };
 
 /** @type {Record<string, (el: HTMLElement, arg: string) => void>} */
 const ACTIONS = {
@@ -96,7 +105,7 @@ const ACTIONS = {
   },
 
   'reset-list': (el, arg) =>
-    confirmTwice(el, el, 'lists.resetConfirm', 'lists.reset', () => {
+    confirmTwice(el, el, 'lists.resetConfirm', () => {
       clearTicked(arg);
       render();
     }),
@@ -108,9 +117,15 @@ const ACTIONS = {
   },
 
   forget: (el) =>
-    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'help.forgetConfirm', 'help.forget', () =>
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'help.forgetConfirm', () =>
       forget().then(() => location.replace(location.pathname)),
     ),
+
+  // the Text size buttons on Help: one step bigger or smaller (the screen is drawn again to show the new size)
+  'text-size'(_, arg) {
+    setTextSize(textSize() + Number(arg));
+    render();
+  },
 
   'toggle-password'(el) {
     const input = /** @type {HTMLInputElement} */ (byId('pw'));
@@ -149,34 +164,46 @@ const ACTIONS = {
   },
 
   'edit-delete': (el, arg) =>
-    confirmTwice(
-      el,
-      /** @type {HTMLElement} */ (el.querySelector('span')),
-      'edit.deleteConfirm',
-      DELETE_LABELS[arg.split(':')[0]] ?? 'edit.deleteEvent',
-      () => {
-        deleteFromDraft(arg);
-        changed();
-      },
-    ),
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'edit.deleteConfirm', () => {
+      deleteFromDraft(arg);
+      changed();
+    }),
 
   'edit-hide'(_, arg) {
     toggleHidden(Number(arg));
     changed(false);
   },
 
+  // the Trips section: put this trip away and start a new one, bring a past one back, delete a past one
+  'trip-archive': (el) =>
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'edit.tripArchiveConfirm', async () => {
+      archiveAndStartNew();
+      await useOtherTrip();
+      changed();
+    }),
+  'trip-switch': (el, arg) =>
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'edit.tripSwitchConfirm', async () => {
+      switchToArchived(arg);
+      await useOtherTrip();
+      changed();
+    }),
+  'trip-delete': (el, arg) =>
+    confirmTwice(el, /** @type {HTMLElement} */ (el.querySelector('span')), 'edit.tripDeleteConfirm', () => {
+      deleteArchived(arg);
+      changed();
+    }),
+
   discard: (el) =>
     // the button keeps its size (it is round, in the header): it turns red, and the header's subtitle line says to
-    // press again, then goes back to what it said
+    // press again (and a screen reader is told), then goes back to what it said
     confirmTwice(
       el,
       /** @type {HTMLElement} */ (byId('bar').querySelector('.date')),
       'edit.discardConfirm',
-      'edit.unpublished',
-      () => {
-        discardDraft();
+      async () => {
+        await discardDraft();
         state.notice = null;
-        useDraft();
+        await useOtherTrip(); // the draft may have been another trip (archived or switched), with other languages
         render();
       },
     ),
@@ -232,7 +259,10 @@ function onEditSubmit(form) {
   if (field) {
     // the field may be in a collapsed section: open it first, or it can't take the focus
     const folded = field.closest('details');
-    if (folded) folded.open = true;
+    if (folded) {
+      folded.dataset.drawn = 'true'; // opened by us, not chosen: not to be remembered
+      folded.open = true;
+    }
     field.setAttribute('aria-invalid', 'true');
     field.focus({ preventScroll: true });
     field.scrollIntoView({ block: 'center' });
@@ -375,7 +405,8 @@ export function listen() {
     if (el instanceof HTMLInputElement && el.dataset.list) onCheck(el);
     if (el instanceof HTMLInputElement && el.id === 'f-image') onImage(el);
   });
-  // a section of the Edit tab was opened or closed (the event does not bubble, so it is caught on the way down)
+  // a collapsible section (a list, a section of the Edit tab) was opened or closed: remember it, and measure the text
+  // boxes it holds (the event does not bubble, so it is caught on the way down)
   document.addEventListener(
     'toggle',
     (event) => {

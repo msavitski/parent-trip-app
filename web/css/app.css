@@ -101,6 +101,9 @@ a {
   /* a line under it, so it reads as a header and content doesn't just stop at its edge; drawn in the screen's own
      ink, because a sheet can be any colour (taxi sign, ticket paper) */
   border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  /* like .page: a pinch that starts on the header is looked at only up to its nearest scroll box (this one), and
+     iOS ignores user-scalable=no, so without this it could still zoom the page and move the header */
+  touch-action: pan-x pan-y;
 }
 .page {
   overflow-y: auto;
@@ -211,18 +214,15 @@ a {
 .head .btn {
   flex: none;
 }
-/* the title is at most two lines and the subtitle one, so a long name never makes the header tall */
-.head .big {
+/* the title and the subtitle are at most two lines each (the subtitle is a short line, a date or a count: a sentence
+   that has to be read goes in the page, not here), so a long name never makes the header tall */
+.head .big,
+.head .date {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
-}
-.head .date {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .head .form-err {
   margin-top: 10px;
@@ -1171,6 +1171,8 @@ a {
 .sheet--taxi {
   background: var(--sign);
   color: var(--sign-ink);
+  /* the sign stays yellow in both themes, so the muted text of the theme (light grey in the dark one) can't be read on it */
+  --muted: var(--sign-ink);
 }
 .sheet--taxi .btn,
 .sheet--taxi .chip {
@@ -1253,6 +1255,8 @@ a {
 .sheet--phrase {
   background: var(--paper);
   color: var(--paper-ink);
+  /* the paper stays white in both themes: the same for the muted text (the header's eyebrow and the like) */
+  --muted: var(--paper-muted);
 }
 .sheet--ticket .label,
 .sheet--phrase .label {
@@ -1317,6 +1321,8 @@ a {
   gap: 10px;
   width: max-content;
   max-width: 100%;
+  /* in a flex column a box with its own width sits at the start: centre it */
+  margin-inline: auto;
   padding: 8px 10px;
   border: 2px solid var(--paper-ink);
   border-radius: 999px;
@@ -1648,6 +1654,12 @@ a {
 .fold > summary::-webkit-details-marker {
   display: none;
 }
+/* The card clips what is drawn outside it, and the heading and the rows sit at its edges: their focus ring (the
+   outline of the page, 3px outside the element) would be cut away entirely, so here it is drawn inside them. */
+.fold > summary:focus-visible,
+.fold--list :is(.edit-row, .eye, .edit-add):focus-visible {
+  outline-offset: -3px;
+}
 .fold > summary h2 {
   flex: 1;
   min-width: 0;
@@ -1748,14 +1760,17 @@ a {
   text-align: left;
   cursor: pointer;
 }
-.edit-add:first-child {
+/* an empty list has no height: the heading's own line above is the divider, so the Add row has none of its own */
+.edit-list:empty + .edit-add {
   border-top: 0;
 }
 .edit-add:active {
   background: var(--bg);
 }
+/* a Delete button is as wide as its text, in a card (a grid) and on the page (a column) alike */
 .edit-del {
   justify-self: start;
+  align-self: flex-start;
 }
 .field-check {
   display: flex;
@@ -1946,4 +1961,54 @@ a {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+/* Help: the Text size buttons and the size between them */
+.text-size {
+  align-items: center;
+}
+.text-size-level {
+  min-width: 4.5ch;
+  text-align: center;
+  font: 700 1.25rem var(--f-mono);
+}
+
+/* A short screen (a phone turned sideways): the header and the tab bar stay pinned, so they get smaller instead of
+   leaving the page almost nothing. The title is one line, the trip's name above it goes, the tabs put their label
+   beside the icon. */
+@media (max-height: 32rem) {
+  :root {
+    --tabbar: 3.25rem;
+  }
+  .eyebrow {
+    display: none;
+  }
+  .head {
+    padding-block: 6px;
+  }
+  .head .big {
+    font-size: 1.375rem;
+    -webkit-line-clamp: 1;
+  }
+  .head .date {
+    font-size: 1rem;
+    -webkit-line-clamp: 1;
+  }
+  .back,
+  .head .btn--round {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .tab {
+    flex-direction: row;
+    gap: 6px;
+    padding-block: 2px;
+  }
+  .tab .ic {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .tab-dot {
+    top: 4px;
+  }
 }

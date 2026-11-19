@@ -8,7 +8,7 @@
  * - a field that shares its key with others, or fills {placeholders}, gets a new "ed.*" key,
  *   so editing it changes only that field. Unused "ed.*" keys are dropped before publishing.
  *
- * @import { Payload, TicketImage } from '../../../types/app'
+ * @import { ArchivedTrip, Payload, TicketImage } from '../../../types/app'
  * @import { TextRef } from '../../../types/trip'
  */
 import { t } from '../i18n.js';
@@ -214,25 +214,38 @@ export function dropUnusedImages(payload) {
 
 const DRAFT = 'admin-draft';
 
-/** Whether the draft differs from what is published. */
-export const isDirty = () => !!state.draft && JSON.stringify(state.draft) !== JSON.stringify(state.original);
+/**
+ * Whether the archive (the past trips) changed. Every change adds, removes or swaps a trip, so the list of ids says
+ * it, without comparing the trips' images (this runs on every drawing of the Edit tab).
+ */
+export const archiveChanged = () =>
+  state.archive.map((t) => t.id).join() !== state.archiveOriginal.map((t) => t.id).join();
+
+/** Whether the draft (or the archive) differs from what is published. */
+export const isDirty = () =>
+  !!state.draft && (JSON.stringify(state.draft) !== JSON.stringify(state.original) || archiveChanged());
 
 /**
- * Keep the draft on this device (it belongs to the trip.enc it was started from).
+ * Keep the draft on this device (it belongs to the trip.enc it was started from), with the archive if that changed.
  * Returns false if the device couldn't keep it.
  */
 export async function saveDraft() {
   if (!state.enc) return false;
-  return bigStore.set(DRAFT, isDirty() ? { base: state.enc.iv, payload: state.draft } : null);
+  return bigStore.set(
+    DRAFT,
+    isDirty()
+      ? { base: state.enc.iv, payload: state.draft, ...(archiveChanged() ? { archive: state.archive } : {}) }
+      : null,
+  );
 }
 
 /**
  * The saved draft, if it was started from the trip.enc that is open now. A draft for an older version
  * (the trip was published from somewhere else since) is set aside with a notice, never dropped silently.
- * @returns {Promise<Payload | null>}
+ * @returns {Promise<{ payload: Payload, archive?: ArchivedTrip[] } | null>}
  */
 export async function loadDraft() {
-  /** @type {{ base: string, payload: Payload } | null} */
+  /** @type {{ base: string, payload: Payload, archive?: ArchivedTrip[] } | null} */
   let saved = await bigStore.get(DRAFT);
   // version 0.0.2 kept the draft in localStorage: move it over once
   const legacy = store.get('draft', /** @type {typeof saved} */ (null));
@@ -248,14 +261,15 @@ export async function loadDraft() {
     await bigStore.set(DRAFT, null);
     return null;
   }
-  if (saved.base === state.enc.iv) return saved.payload;
+  if (saved.base === state.enc.iv) return { payload: saved.payload, archive: saved.archive };
   state.notice = { kind: 'warn', text: t('edit.draftStale') };
   await bigStore.set(DRAFT, null);
   return null;
 }
 
-/** Throw the changes away. */
+/** Throw the changes away (the archive goes back to what is published too). */
 export async function discardDraft() {
   state.draft = structuredClone(state.original);
+  state.archive = [...state.archiveOriginal];
   await bigStore.set(DRAFT, null);
 }

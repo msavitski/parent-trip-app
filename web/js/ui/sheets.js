@@ -100,7 +100,8 @@ function setZoom(next, x, y) {
   if (!view || !img || !sheet) return;
   zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
   const box = view.getBoundingClientRect();
-  const at = { x: x ?? box.left + box.width / 2, y: y ?? sheet.clientHeight / 2 };
+  // the middle of the visible scrolling area (it starts below the header, so its top is not the screen's top)
+  const at = { x: x ?? box.left + box.width / 2, y: y ?? sheet.getBoundingClientRect().top + sheet.clientHeight / 2 };
   const before = img.getBoundingClientRect();
   const down = (at.y - before.top) / before.height;
   const across = (view.scrollLeft + at.x - box.left) / view.scrollWidth;

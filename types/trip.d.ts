@@ -14,6 +14,10 @@ export interface Trip {
    */
   $schema?: string | null;
   /**
+   * Who this trip is. The app sets it when it archives a trip or starts a new one; a phone that sees it change starts with empty checklists (the ticks and own items of the trip before would not fit). Leave it out otherwise.
+   */
+  id?: string | null;
+  /**
    * A translation key ("d1.title") or a key with values for its placeholders (["meet.lobbyAt", {"time": "09:45"}]).
    */
   title: string | [string] | [string, {[name: string]: string | number}];
